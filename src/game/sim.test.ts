@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { generateWave, enemyCountForWave, expandSpawnQueue, isBossWave } from '../config/waves';
 import { TOWERS } from '../config/towers';
 import { ENEMIES } from '../config/enemies';
+import { MAPS, getMap } from '../config/maps';
 import { createInitialState } from './GameState';
 import { Game } from './Game';
 import { canAfford, spendGold, addGold } from './systems/EconomySystem';
@@ -82,6 +83,53 @@ describe('targeting (spec §24)', () => {
     const tower = { x: 0, y: 0, targeting: 'first' as const };
     const enemies = [fakeEnemy({ id: 1, x: 500, y: 0, distanceTraveled: 9 })];
     expect(acquireTarget(tower, enemies, 100)).toBeUndefined();
+  });
+});
+
+describe('maps', () => {
+  function distToPath(x: number, y: number, path: { x: number; y: number }[]): number {
+    let best = Infinity;
+    for (let i = 0; i < path.length - 1; i++) {
+      const ax = path[i].x;
+      const ay = path[i].y;
+      const bx = path[i + 1].x;
+      const by = path[i + 1].y;
+      const dx = bx - ax;
+      const dy = by - ay;
+      const lenSq = dx * dx + dy * dy;
+      let t = lenSq === 0 ? 0 : ((x - ax) * dx + (y - ay) * dy) / lenSq;
+      t = Math.min(1, Math.max(0, t));
+      best = Math.min(best, Math.hypot(x - (ax + t * dx), y - (ay + t * dy)));
+    }
+    return best;
+  }
+
+  it('exposes multiple maps with unique slots kept off the path', () => {
+    expect(MAPS.length).toBeGreaterThanOrEqual(3);
+    for (const map of MAPS) {
+      expect(map.path.length).toBeGreaterThanOrEqual(2);
+      expect(map.buildSlots.length).toBeGreaterThan(0);
+      expect(new Set(map.buildSlots.map((s) => s.id)).size).toBe(map.buildSlots.length);
+      for (const s of map.buildSlots) {
+        expect(s.x).toBeGreaterThan(0);
+        expect(s.x).toBeLessThan(map.world.width);
+        expect(s.y).toBeGreaterThan(0);
+        expect(s.y).toBeLessThan(map.world.height);
+        expect(distToPath(s.x, s.y, map.path)).toBeGreaterThan(50);
+      }
+      // Base sits at (or just past) the end of the path.
+      const end = map.path[map.path.length - 1];
+      expect(Math.hypot(map.base.x - end.x, map.base.y - end.y)).toBeLessThanOrEqual(200);
+    }
+  });
+  it('createInitialState uses the given map geometry and economy', () => {
+    const canyon = getMap('canyon');
+    const s = createInitialState(1, canyon);
+    expect(s.map.id).toBe('canyon');
+    expect(s.buildSlots).toHaveLength(canyon.buildSlots.length);
+    expect(s.buildSlots[0].id).toBe(canyon.buildSlots[0].id);
+    expect(s.baseHp).toBe(canyon.baseHp);
+    expect(s.baseMaxHp).toBe(canyon.baseHp);
   });
 });
 

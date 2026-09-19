@@ -8,6 +8,7 @@
  * No rendering here — the PixiJS layer observes state + events separately.
  */
 import { TOWERS, type TowerId } from '../config/towers';
+import { DEFAULT_MAP, type MapDefinition } from '../config/maps';
 import { FINAL_MVP_WAVE } from '../config/waves';
 import {
   DEFAULT_TARGETING,
@@ -67,10 +68,18 @@ export class Game {
   readonly rng: Rng;
   bestWave: number;
 
-  constructor(seed = 1337) {
-    this.state = createInitialState(seed);
+  constructor(seed = 1337, map: MapDefinition = DEFAULT_MAP) {
+    this.state = createInitialState(seed, map);
     this.rng = mulberry32(seed);
     this.bestWave = readBestWave();
+  }
+
+  /**
+   * Start a fresh run on the given map, reusing this instance so all views,
+   * panels and event subscriptions stay wired. Resets to MENU.
+   */
+  newRun(map: MapDefinition, seed = this.state.seed): void {
+    Object.assign(this.state, createInitialState(seed, map));
   }
 
   // ---- lifecycle ----

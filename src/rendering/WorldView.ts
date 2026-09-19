@@ -1,22 +1,7 @@
 import * as PIXI from 'pixi.js';
-import { PATH, BUILD_SLOTS, BASE, WORLD } from '../config/map';
+import { DEFAULT_MAP, type MapDefinition } from '../config/maps';
 import type { Game } from '../game/Game';
 import type { Renderer } from './Renderer';
-
-export interface MapDef {
-  path: { x: number; y: number }[];
-  slots: { id: string; x: number; y: number }[];
-  base: { x: number; y: number; radius: number };
-}
-
-/** MapDef straight from data-driven config (spec §51). */
-export function mapDefFromConfig(): MapDef {
-  return {
-    path: PATH.map((p) => ({ ...p })),
-    slots: BUILD_SLOTS.map((s) => ({ ...s })),
-    base: { x: BASE.x, y: BASE.y, radius: BASE.radius },
-  };
-}
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -73,7 +58,7 @@ export class WorldView {
 
   private renderer: Renderer;
   private game: Game;
-  private def: MapDef;
+  private def: MapDefinition;
 
   private baseBar = new PIXI.Graphics();
   private baseGlowA: PIXI.Sprite | null = null;
@@ -103,10 +88,17 @@ export class WorldView {
     return this.vignetteCache;
   }
 
-  constructor(renderer: Renderer, game: Game, def?: MapDef) {
+  constructor(renderer: Renderer, game: Game, def: MapDefinition = DEFAULT_MAP) {
     this.renderer = renderer;
     this.game = game;
-    this.def = def ?? mapDefFromConfig();
+    this.def = def;
+    this.build();
+  }
+
+  /** Swap to another map and rebuild all static art (used by map select). */
+  setMap(def: MapDefinition): void {
+    this.def = def;
+    this.slots.clear();
     this.build();
   }
 
@@ -194,13 +186,13 @@ export class WorldView {
     this.drawPath(L.map, this.def.path);
     this.drawDecorations(L.map, this.def);
     this.drawBase(L.map, this.def.base);
-    this.drawSlots(L.buildSlot, this.def.slots);
+    this.drawSlots(L.buildSlot, this.def.buildSlots);
     L.overlay.addChild(this.rangeG);
     // Soft vignette over the whole world: focus pull to the battlefield.
     const vig = new PIXI.Sprite(this.vignetteTexture());
     vig.eventMode = 'none';
-    vig.width = WORLD.width;
-    vig.height = WORLD.height;
+    vig.width = this.def.world.width;
+    vig.height = this.def.world.height;
     vig.alpha = 0.55;
     L.overlay.addChild(vig);
     // Range preview must draw above the vignette.
@@ -240,17 +232,20 @@ export class WorldView {
   }
 
   private drawGrass(layer: PIXI.Container): void {
-    // Oversized meadow backdrop so letterbox bars show grass, not flat color.
+    const th = this.def.theme;
+    const W = this.def.world.width;
+    const H = this.def.world.height;
+    // Oversized backdrop so letterbox bars show ground, not flat color.
     const backdrop = new PIXI.Graphics();
     backdrop.eventMode = 'none';
-    backdrop.rect(-800, -800, WORLD.width + 1600, WORLD.height + 1600).fill({ color: 0x77bd4e });
+    backdrop.rect(-800, -800, W + 1600, H + 1600).fill({ color: th.backdrop });
     layer.addChild(backdrop);
 
     const g = new PIXI.Graphics();
-    g.rect(0, 0, WORLD.width, WORLD.height).fill({ color: 0x8fd45e });
+    g.rect(0, 0, W, H).fill({ color: th.ground });
     // Whole-background click target for empty-space dismissal.
     g.eventMode = 'static';
-    g.hitArea = new PIXI.Rectangle(0, 0, WORLD.width, WORLD.height);
+    g.hitArea = new PIXI.Rectangle(0, 0, W, H);
     g.on('pointerdown', () => this.onEmptyClick?.());
     layer.addChild(g);
 
@@ -258,22 +253,22 @@ export class WorldView {
     const dots = new PIXI.Graphics();
     dots.eventMode = 'none';
     for (let i = 0; i < 520; i++) {
-      const x = rand() * WORLD.width;
-      const y = rand() * WORLD.height;
+      const x = rand() * W;
+      const y = rand() * H;
       const r = 2 + rand() * 4.5;
-      dots.ellipse(x, y, r * 1.4, r).fill({ color: rand() < 0.5 ? 0x7cc24e : 0xa5e56f, alpha: 0.55 });
+      dots.ellipse(x, y, r * 1.4, r).fill({ color: rand() < 0.5 ? th.dotA : th.dotB, alpha: 0.55 });
     }
     layer.addChild(dots);
 
-    // Large soft two-tone meadow patches (ref: autumn pack color-blocking).
+    // Large soft two-tone ground patches (ref: autumn pack color-blocking).
     const patches = new PIXI.Graphics();
     patches.eventMode = 'none';
     for (let i = 0; i < 26; i++) {
-      const x = rand() * WORLD.width;
-      const y = rand() * WORLD.height;
+      const x = rand() * W;
+      const y = rand() * H;
       const rx = 60 + rand() * 130;
       const ry = 40 + rand() * 80;
-      patches.ellipse(x, y, rx, ry).fill({ color: i % 2 ? 0x86cc54 : 0x9bdc66, alpha: 0.35 });
+      patches.ellipse(x, y, rx, ry).fill({ color: i % 2 ? th.patchA : th.patchB, alpha: 0.35 });
     }
     layer.addChild(patches);
 
@@ -281,10 +276,10 @@ export class WorldView {
     const tufts = new PIXI.Graphics();
     tufts.eventMode = 'none';
     for (let i = 0; i < 240; i++) {
-      const x = 20 + rand() * (WORLD.width - 40);
-      const y = 20 + rand() * (WORLD.height - 40);
+      const x = 20 + rand() * (W - 40);
+      const y = 20 + rand() * (H - 40);
       const s = 3 + rand() * 3;
-      const c = rand() < 0.7 ? 0x4e9e3a : 0x63b84a;
+      const c = rand() < 0.7 ? th.tuftA : th.tuftB;
       tufts.poly([x - s, y, x - s * 0.4, y - s * 1.6]).stroke({ width: 2, color: c, cap: 'round' });
       tufts.poly([x + s, y, x + s * 0.4, y - s * 1.6]).stroke({ width: 2, color: c, cap: 'round' });
       tufts.poly([x, y, x, y - s * 2]).stroke({ width: 2, color: c, cap: 'round' });
@@ -308,19 +303,20 @@ export class WorldView {
 
     const frame = new PIXI.Graphics();
     frame.eventMode = 'none';
-    frame.rect(0, 0, WORLD.width, WORLD.height).stroke({ width: 18, color: 0x5da33a });
-    frame.rect(9, 9, WORLD.width - 18, WORLD.height - 18).stroke({ width: 4, color: 0xffffff, alpha: 0.25 });
+    frame.rect(0, 0, W, H).stroke({ width: 18, color: th.frame });
+    frame.rect(9, 9, W - 18, H - 18).stroke({ width: 4, color: 0xffffff, alpha: 0.25 });
     layer.addChild(frame);
   }
 
   private drawPath(layer: PIXI.Container, path: { x: number; y: number }[]): void {
+    const th = this.def.theme;
     const flat: number[] = [];
     for (const p of path) flat.push(p.x, p.y);
     const g = new PIXI.Graphics();
     g.eventMode = 'none';
-    g.poly(flat).stroke({ width: 74, color: 0x3f6b28, alpha: 0.35, cap: 'round', join: 'round' });
-    g.poly(flat).stroke({ width: 64, color: 0xb07a4a, cap: 'round', join: 'round' });
-    g.poly(flat).stroke({ width: 48, color: 0xe3b877, cap: 'round', join: 'round' });
+    g.poly(flat).stroke({ width: 74, color: th.pathEdge, alpha: 0.35, cap: 'round', join: 'round' });
+    g.poly(flat).stroke({ width: 64, color: th.pathBorder, cap: 'round', join: 'round' });
+    g.poly(flat).stroke({ width: 48, color: th.pathFill, cap: 'round', join: 'round' });
     layer.addChild(g);
 
     const pebbles = new PIXI.Graphics();
@@ -340,7 +336,7 @@ export class WorldView {
             4 + rand() * 4,
             3 + rand() * 3,
           )
-          .fill({ color: 0xd1945a, alpha: 0.8 });
+          .fill({ color: th.pebble, alpha: 0.8 });
       }
       // Cobble edge stones along both borders (ref: defined walkable lanes).
       const nx = -(b.y - a.y) / (len || 1);
@@ -354,7 +350,7 @@ export class WorldView {
           const sx = cx + nx * side * (36 + (rand() - 0.5) * 6);
           const sy = cy + ny * side * (36 + (rand() - 0.5) * 6);
           const r = 5 + rand() * 3.5;
-          pebbles.ellipse(sx, sy + 2, r, r * 0.6).fill({ color: 0x3f6b28, alpha: 0.3 });
+          pebbles.ellipse(sx, sy + 2, r, r * 0.6).fill({ color: th.pathEdge, alpha: 0.3 });
           pebbles.circle(sx, sy, r).fill({ color: 0xcfc4ae });
           pebbles.circle(sx, sy, r).stroke({ width: 2, color: 0x9a917f });
           pebbles.circle(sx - r * 0.25, sy - r * 0.25, r * 0.35).fill({ color: 0xe8e0cf });
@@ -364,12 +360,12 @@ export class WorldView {
     layer.addChild(pebbles);
   }
 
-  private drawDecorations(layer: PIXI.Container, def: MapDef): void {
+  private drawDecorations(layer: PIXI.Container, def: MapDefinition): void {
     const rand = mulberry32(20240);
     const clearOf = (x: number, y: number, pad: number): boolean => {
       if (distToPath(x, y, def.path) < pad) return false;
       if (Math.hypot(x - def.base.x, y - def.base.y) < def.base.radius + 110) return false;
-      for (const s of def.slots) {
+      for (const s of def.buildSlots) {
         if (Math.hypot(x - s.x, y - s.y) < 70) return false;
       }
       return true;
@@ -378,8 +374,8 @@ export class WorldView {
       let placed = 0;
       let guard = 0;
       while (placed < count && guard++ < count * 40) {
-        const x = 50 + rand() * (WORLD.width - 100);
-        const y = 50 + rand() * (WORLD.height - 100);
+        const x = 50 + rand() * (def.world.width - 100);
+        const y = 50 + rand() * (def.world.height - 100);
         if (!clearOf(x, y, pad)) continue;
         fn(x, y, rand());
         placed++;
@@ -493,7 +489,7 @@ export class WorldView {
       if (lanterns >= 4) break;
       if (distToPath(lx, ly, def.path) > 78) continue;
       let blocked = Math.hypot(lx - def.base.x, ly - def.base.y) < def.base.radius + 90;
-      for (const s of def.slots) {
+      for (const s of def.buildSlots) {
         if (Math.hypot(lx - s.x, ly - s.y) < 58) blocked = true;
       }
       if (blocked) continue;
@@ -528,7 +524,7 @@ export class WorldView {
     this.lanternGlows.push({ sprite: glow, phase: Math.random() * Math.PI * 2 });
   }
 
-  private drawBase(layer: PIXI.Container, base: MapDef['base']): void {
+  private drawBase(layer: PIXI.Container, base: MapDefinition['base']): void {
     const root = new PIXI.Container();
     root.eventMode = 'none';
     root.position.set(base.x, base.y);
@@ -626,7 +622,7 @@ export class WorldView {
     this.lastHpFrac = -1;
   }
 
-  private drawSlots(layer: PIXI.Container, slots: MapDef['slots']): void {
+  private drawSlots(layer: PIXI.Container, slots: MapDefinition['buildSlots']): void {
     for (const s of slots) {
       const root = new PIXI.Container();
       root.position.set(s.x, s.y);

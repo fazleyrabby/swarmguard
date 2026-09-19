@@ -3,7 +3,7 @@
  * arrive as a swarm, not all at once.
  */
 import { ENEMIES, type EnemyType } from '../../config/enemies';
-import { PATH } from '../../config/map';
+import { DEFAULT_MAP, type Waypoint } from '../../config/maps';
 import { nextEnemyId, type Enemy } from '../entities';
 import type { GameState } from '../GameState';
 import type { WaveDefinition } from './WaveGenerator';
@@ -22,19 +22,20 @@ export function initWaveSpawning(
   state.waveTotalEnemies = def.totalEnemies;
 }
 
-/** Build one scaled enemy at the path start. Pure w.r.t. inputs. */
+/** Build one scaled enemy at the given spawn point. Pure w.r.t. inputs. */
 export function makeEnemy(
   type: EnemyType,
   hpMult: number,
   speedMult: number,
+  spawn: Waypoint = DEFAULT_MAP.spawn,
 ): Enemy {
   const def = ENEMIES[type];
   const hp = Math.max(1, Math.round(def.hp * hpMult));
   return {
     id: nextEnemyId(),
     type,
-    x: PATH[0].x,
-    y: PATH[0].y,
+    x: spawn.x,
+    y: spawn.y,
     hp,
     maxHp: hp,
     speed: def.speed * speedMult,
@@ -59,6 +60,8 @@ export function updateSpawn(state: GameState, delta: number): void {
     state.spawnTimer -= state.spawnIntervalSec;
     const type = state.spawnQueue.shift();
     if (!type) break;
-    state.enemies.push(makeEnemy(type, state.waveHpMult, state.waveSpeedMult));
+    state.enemies.push(
+      makeEnemy(type, state.waveHpMult, state.waveSpeedMult, state.map.spawn),
+    );
   }
 }

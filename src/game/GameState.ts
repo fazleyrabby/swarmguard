@@ -2,7 +2,7 @@
  * Central game state (spec §77) + initial-state factory.
  * Plain data — systems mutate it, renderer/UI observe it.
  */
-import { BUILD_SLOTS, ECONOMY } from '../config/map';
+import { DEFAULT_MAP, type MapDefinition } from '../config/maps';
 import type { BuildSlot, Enemy, Projectile, Tower } from './entities';
 import { resetEntityIds } from './entities';
 import type { EnemyType } from '../config/enemies';
@@ -19,6 +19,8 @@ export enum GameStatus {
 
 export interface GameState {
   status: GameStatus;
+  /** Active map definition (geometry + economy). */
+  map: MapDefinition;
   /** Status to restore on resume() after a pause. */
   prevStatus?: GameStatus;
   wave: number;
@@ -59,18 +61,22 @@ export function isGameOver(state: GameState): boolean {
   return state.status === GameStatus.GAME_OVER;
 }
 
-export function createInitialState(seed = 1337): GameState {
+export function createInitialState(
+  seed = 1337,
+  map: MapDefinition = DEFAULT_MAP,
+): GameState {
   resetEntityIds();
   return {
     status: GameStatus.MENU,
+    map,
     wave: 0,
-    gold: ECONOMY.startingGold,
-    baseHp: ECONOMY.baseHp,
-    baseMaxHp: ECONOMY.baseMaxHp,
+    gold: map.startingGold,
+    baseHp: map.baseHp,
+    baseMaxHp: map.baseHp,
     enemies: [],
     towers: [],
     projectiles: [],
-    buildSlots: BUILD_SLOTS.map((s) => ({
+    buildSlots: map.buildSlots.map((s) => ({
       id: s.id,
       x: s.x,
       y: s.y,

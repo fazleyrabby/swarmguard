@@ -16,6 +16,12 @@ export interface GameSettings {
   damageNumbers: boolean;
 }
 
+export interface MapOption {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface HudCallbacks {
   onPlay: () => void;
   onStartWave: () => void;
@@ -25,6 +31,7 @@ export interface HudCallbacks {
   onSpeed: (speed: SpeedSetting) => void;
   onMuteToggle: () => void;
   onSettingsChange: (settings: GameSettings) => void;
+  onSelectMap: (id: string) => void;
 }
 
 export interface EndOfGameStats {
@@ -52,6 +59,8 @@ export class HUD {
   private callbacks: HudCallbacks;
   private settings: GameSettings;
   private highestWave = 0;
+  private maps: MapOption[];
+  private selectedMapId: string;
 
   private top = el('ui');
   private hp = el('hud-hp');
@@ -82,9 +91,16 @@ export class HUD {
   private lastMuted: boolean | null = null;
   private lastCard: string | null = null;
 
-  constructor(callbacks: HudCallbacks, settings: GameSettings) {
+  constructor(
+    callbacks: HudCallbacks,
+    settings: GameSettings,
+    maps: MapOption[] = [],
+    selectedMapId = maps[0]?.id ?? '',
+  ) {
     this.callbacks = callbacks;
     this.settings = { ...settings };
+    this.maps = maps;
+    this.selectedMapId = selectedMapId;
     this.speedBtns = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-speed]'));
 
     this.pauseBtn.addEventListener('click', () => callbacks.onPause());
@@ -217,15 +233,35 @@ export class HUD {
 
   showMenu(): void {
     this.setChromeVisible(false);
+    const mapButtons = this.maps
+      .map((m) => {
+        const active = m.id === this.selectedMapId ? ' active' : '';
+        return `<button class="map-btn${active}" data-map="${m.id}">
+          <span class="map-name">${m.name}</span>
+          <span class="map-desc">${m.description}</span>
+        </button>`;
+      })
+      .join('');
+    const picker = mapButtons ? `<div class="map-picker">${mapButtons}</div>` : '';
     const card = this.mountCard(
       'menu',
       `<div class="game-title">🏰 SWARMGUARD</div>
        <div class="game-subtitle">Defend the Core</div>
        <div class="menu-best">Highest wave: <strong>${this.highestWave}</strong></div>
+       ${picker}
        <button class="btn btn-primary btn-big" data-action="play">▶ PLAY</button>
        <button class="btn" data-action="settings">⚙ SETTINGS</button>
        <div class="menu-hint">Click a glowing pad to build • click a tower to upgrade • Space pauses</div>`,
     );
+    card.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.map;
+        if (!id) return;
+        this.selectedMapId = id;
+        this.callbacks.onSelectMap(id);
+        this.showMenu();
+      });
+    });
     card.querySelector('[data-action="play"]')?.addEventListener('click', () => this.callbacks.onPlay());
     card.querySelector('[data-action="settings"]')?.addEventListener('click', () => this.showSettings(true));
   }

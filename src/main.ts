@@ -13,11 +13,11 @@
 
 import './styles/main.css';
 import { AudioManager } from './audio/AudioManager';
-import { BASE } from './config/map';
+import { MAPS, DEFAULT_MAP, getMap, type MapDefinition } from './config/maps';
 import { ENEMIES } from './config/enemies';
 import type { WaveDefinition } from './config/waves';
 import { Game, type SpeedSetting } from './game/Game';
-import { GameStatus, createInitialState } from './game/GameState';
+import { GameStatus } from './game/GameState';
 import { addGold } from './game/systems/EconomySystem';
 import { makeEnemy } from './game/systems/SpawnSystem';
 import { Renderer } from './rendering/Renderer';
@@ -105,8 +105,9 @@ async function boot(): Promise<void> {
   // ---------------------------------------------------------- rendering
   const renderer = await Renderer.create(gameContainer);
   if (!renderer?.app?.renderer) throw new Error('[swarmguard] Renderer.create did not produce app.renderer');
-  const game = new Game();
-  const worldView = new WorldView(renderer, game);
+  let selectedMapId = DEFAULT_MAP.id;
+  const game = new Game(1337, getMap(selectedMapId));
+  const worldView = new WorldView(renderer, game, getMap(selectedMapId));
   const entityView = new EntityView(
     renderer.layers.enemy,
     renderer.layers.tower,
@@ -160,8 +161,11 @@ async function boot(): Promise<void> {
         renderer.setShakeEnabled(settings.shake);
         effects.setDamageNumbersEnabled(settings.damageNumbers);
       },
+      onSelectMap: (id: string) => selectMap(id),
     },
     settings,
+    MAPS.map((m) => ({ id: m.id, name: m.name, description: m.description })),
+    selectedMapId,
   );
 
   const panels = new Panels(panelSlot, game, audio, {
@@ -254,7 +258,8 @@ async function boot(): Promise<void> {
   });
 
   game.events.on('base:damaged', () => {
-    effects.baseHit(BASE.x, BASE.y);
+    const b = game.state.map.base;
+    effects.baseHit(b.x, b.y);
     audio.play('base-hit');
   });
 
@@ -326,20 +331,31 @@ async function boot(): Promise<void> {
   game.events.on('game:over', () => finishRun(false));
   game.events.on('victory', () => finishRun(true));
 
-  function restartRun(): void {
-    audio.play('click');
-    // Reset state in place: views, panels and subscriptions all hold this
-    // Game instance, so no re-wiring is needed.
-    // Clear stale FX maps first so old HP/projectile ids don't leak into the new run.
+  function applyMap(map: MapDefinition): void {
+    game.newRun(map);
+    worldView.setMap(map);
     prevHp.clear();
     prevProjectiles.clear();
-    hud.clearOverlays();
-    Object.assign(game.state, createInitialState(game.state.seed));
-    game.startGame();
     worldView.refreshSlots();
     worldView.hideRange();
     panels.close();
     hud.setHighestWave(game.bestWave);
+  }
+
+  /** Menu map selection: reset the run to MENU on the chosen map. */
+  function selectMap(id: string): void {
+    audio.play('click');
+    selectedMapId = getMap(id).id;
+    applyMap(getMap(selectedMapId));
+  }
+
+  function restartRun(): void {
+    audio.play('click');
+    // Reset state in place: views, panels and subscriptions all hold this
+    // Game instance, so no re-wiring is needed. Keep the current map.
+    hud.clearOverlays();
+    applyMap(game.state.map);
+    game.startGame();
     hud.hideMenu();
     hud.showPreparation(1);
   }
@@ -355,7 +371,7 @@ async function boot(): Promise<void> {
         e.preventDefault();
         const s = game.state;
         if (s.status === GameStatus.WAVE_ACTIVE) {
-          s.enemies.push(makeEnemy('grunt', s.waveHpMult, s.waveSpeedMult));
+          s.enemies.push(makeEnemy('grunt', s.waveHpMult, s.waveSpeedMult, s.map.spawn));
         }
       } else if (e.key === 'F2') {
         e.preventDefault();

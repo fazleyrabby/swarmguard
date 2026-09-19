@@ -8,6 +8,7 @@ Built with **PixiJS + TypeScript + Vite**. No backend, no accounts, no external 
 
 - **Three tower types** — Crossbow (fast single-target), Cannon (heavy splash), Bomb Tower (large AoE + slow).
 - **5 upgrade levels** per tower, with live stat/cost previews and a sell-for-70% option.
+- **Three maps** — Meadow Vale, Serpent Canyon and Frozen Pass, each with its own path layout, build slots and visual theme. Pick one from the main menu.
 - **Three enemy types** — Grunt, Runner, Tank — with distinct HP, speed, damage and bounty.
 - **Boss waves** — every 10th wave sends a Warlord: huge HP, an always-visible health bar, and a screen-shaking death.
 - **10 hand-tuned waves** plus an **endless mode** with scaling HP/speed and a growing Tank share.
@@ -51,6 +52,7 @@ Then open the printed local URL (default <http://localhost:5173>).
 
 | Input              | Action                                    |
 | ------------------ | ----------------------------------------- |
+| Menu map button    | Choose the battlefield before PLAY        |
 | Click build pad    | Open the build menu for that slot         |
 | Click tower        | Open the upgrade / sell panel             |
 | `Space`            | Pause / resume                            |
@@ -96,7 +98,7 @@ HUD, menus and panels (`src/ui`) communicate with game state and events only —
 ```
 src/
   audio/       AudioManager — generated sound effects
-  config/      Data: map, towers, enemies, waves
+  config/      Data: maps, towers, enemies, waves
   game/        Entities, state, event bus, RNG, Game loop
     systems/   Combat, economy, movement, projectiles, spawn, targeting, upgrades, waves
   rendering/   Renderer, WorldView, EntityView, Effects

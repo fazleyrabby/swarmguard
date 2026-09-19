@@ -3,8 +3,6 @@
  * Enemies follow the predefined path; reaching the end damages the base
  * and despawns the enemy. No per-enemy pathfinding.
  */
-import { PATH } from '../../config/map';
-import type { Waypoint } from '../../config/map';
 import type { EventBus } from '../EventBus';
 import { GameStatus, type GameState } from '../GameState';
 
@@ -25,8 +23,8 @@ export function updateMovement(
   state: GameState,
   delta: number,
   events: EventBus,
-  path: Waypoint[] = PATH,
 ): void {
+  const path = state.map.path;
   if (path.length < 2) return;
   for (const enemy of state.enemies) {
     if (!enemy.alive) continue;
