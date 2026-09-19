@@ -26,6 +26,17 @@ export interface Enemy {
   /** Total distance travelled along the path — drives "first" targeting. */
   distanceTraveled: number;
   alive: boolean;
+  /** Remaining absorbing shield (shield ability). */
+  shield?: number;
+  maxShield?: number;
+  /** HP restored per second (regen ability). */
+  regenPerSec?: number;
+  /** Speed aura radius in world px (herald ability). */
+  auraRadius?: number;
+  /** Bonus speed fraction granted to nearby allies (herald ability). */
+  auraSpeedBonus?: number;
+  /** Runtime speed multiplier from nearby heralds (1 = unaffected). */
+  auraMult?: number;
   /** Remaining slow time (sec). 0 = not slowed. */
   slowTimeLeft: number;
   /** Slow strength 0–1 (fraction of speed removed). */

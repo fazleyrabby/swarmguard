@@ -219,6 +219,30 @@ export class Effects {
     if (this.shakeOn) this.onShake?.(0.85);
   }
 
+  /** Shield break: blue crack flash + shards + a light shake. */
+  shieldBreak(x: number, y: number): void {
+    this.flash(x, y, 90, 0xbfdbfe, 0.16);
+    this.ring(x, y, 14, 120, 0x60a5fa, 0.45);
+    const palette = [0x93c5fd, 0xffffff, 0x3b82f6];
+    for (let i = 0; i < 14; i++) {
+      const p = this.spawn();
+      if (!p) break;
+      const a = Math.random() * Math.PI * 2;
+      const sp = 170 * (0.5 + Math.random());
+      this.launch(p, {
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 90,
+        life: 0.35 + Math.random() * 0.35,
+        color: palette[i % palette.length],
+        scale: 0.7,
+        gravity: 520,
+        drag: 2.2,
+      });
+    }
+    if (this.shakeOn) this.onShake?.(0.25);
+  }
+
   /** Cannon impact: explosion + rings + tiny shake. */
   cannonBlast(x: number, y: number, radius = 60): void {
     this.blast(x, y, radius, [0xf97316, 0xfbbf24, 0x78716c], 14, 0.18);

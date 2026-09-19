@@ -39,7 +39,8 @@ import {
   sellRefundFor,
   upgradeCostFor,
 } from './systems/UpgradeSystem';
-import { buildSpawnQueue, generateWave } from './systems/WaveGenerator';
+import { buildSpawnQueue, generateBossRushWave, generateWave } from './systems/WaveGenerator';
+import { updateAbilities } from './systems/AbilitySystem';
 
 /**
  * Default targeting per tower type.
@@ -111,7 +112,10 @@ export class Game {
     if (s.status !== GameStatus.PREPARATION && s.status !== GameStatus.WAVE_COMPLETE) {
       return false;
     }
-    const def = generateWave(s.wave + 1);
+    const def =
+      s.challenge.id === 'boss-rush'
+        ? generateBossRushWave(s.wave + 1)
+        : generateWave(s.wave + 1);
     const ch = s.challenge;
     if (ch.enemyCountMult && ch.enemyCountMult !== 1) {
       def.totalEnemies = Math.max(1, Math.round(def.totalEnemies * ch.enemyCountMult));
@@ -147,6 +151,7 @@ export class Game {
     s.time += dt;
 
     updateSpawn(s, dt);
+    updateAbilities(s, dt, this.events);
     updateMovement(s, dt, this.events);
     if (isGameOver(s)) {
       this.saveBestWave();

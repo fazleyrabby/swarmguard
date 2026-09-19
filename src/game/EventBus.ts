@@ -4,6 +4,7 @@
  */
 export type GameEventName =
   | 'enemy:killed'
+  | 'enemy:shield-broken'
   | 'enemy:reached-base'
   | 'tower:built'
   | 'tower:upgraded'

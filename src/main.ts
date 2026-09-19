@@ -15,7 +15,7 @@ import './styles/main.css';
 import { AudioManager } from './audio/AudioManager';
 import { MAPS, DEFAULT_MAP, getMap, type MapDefinition } from './config/maps';
 import { CHALLENGES, DEFAULT_CHALLENGE, getChallenge } from './config/challenges';
-import { ENEMIES } from './config/enemies';
+import { ENEMIES, isBossType } from './config/enemies';
 import type { WaveDefinition } from './config/waves';
 import { Game, type SpeedSetting } from './game/Game';
 import { GameStatus } from './game/GameState';
@@ -301,7 +301,7 @@ async function boot(): Promise<void> {
   game.events.on('enemy:killed', (payload) => {
     const enemy = payload as { x: number; y: number; reward: number; type: keyof typeof ENEMIES };
     const color = ENEMIES[enemy.type]?.color ?? 0x4ade80;
-    if (enemy.type === 'boss') {
+    if (isBossType(enemy.type)) {
       effects.bossDeath(enemy.x, enemy.y, color);
       audio.play('boss-death');
       unlockAchievement('boss-slayer');
@@ -314,6 +314,12 @@ async function boot(): Promise<void> {
     refreshAchievements();
   });
 
+  game.events.on('enemy:shield-broken', (payload) => {
+    const enemy = payload as { x: number; y: number };
+    effects.shieldBreak(enemy.x, enemy.y);
+    audio.play('shield-break');
+  });
+
   game.events.on('base:damaged', () => {
     baseDamaged = true;
     const b = game.state.map.base;
@@ -323,7 +329,7 @@ async function boot(): Promise<void> {
 
   game.events.on('wave:started', (payload) => {
     const def = payload as WaveDefinition;
-    hud.showWaveBanner(def.wave, def.totalEnemies, !!def.boss);
+    hud.showWaveBanner(def.wave, def.totalEnemies, def.boss ? ENEMIES[def.boss].name : undefined);
     if (def.boss) audio.play('boss-spawn');
     panels.close();
   });

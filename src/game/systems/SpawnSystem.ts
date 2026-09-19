@@ -44,6 +44,12 @@ export function makeEnemy(
     pathIndex: 0,
     distanceTraveled: 0,
     alive: true,
+    shield: def.shield,
+    maxShield: def.shield,
+    regenPerSec: def.regenPerSec,
+    auraRadius: def.auraRadius,
+    auraSpeedBonus: def.auraSpeedBonus,
+    auraMult: 1,
     slowTimeLeft: 0,
     slowFactor: 0,
   };

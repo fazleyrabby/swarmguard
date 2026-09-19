@@ -9,6 +9,8 @@ export interface RenderEnemy {
   y: number;
   hp: number;
   maxHp: number;
+  shield?: number;
+  maxShield?: number;
 }
 
 /** Structural tower view — `main.ts` maps sim towers via `toRenderState()`. */
@@ -41,7 +43,9 @@ interface EnemyNode {
   lastHp: number;
   lastHpFrac: number;
   lastHpVisible: boolean;
+  lastHasShield: boolean;
   type: string;
+  textureName: string;
 }
 
 interface TowerNode {
@@ -68,6 +72,9 @@ function texKey(kind: string, prefix: string, fallback: string): string {
     case 'runner':
     case 'tank':
     case 'boss':
+    case 'boss-shielded':
+    case 'boss-regen':
+    case 'boss-herald':
     case 'crossbow':
     case 'cannon':
     case 'bomb':
@@ -94,6 +101,9 @@ const LEVEL_TINTS = [0xffffff, 0xfff3d6, 0xffe4a8, 0xffd27a, 0xffb84d];
 
 interface EnemyVisual {
   key: 'grunt' | 'runner' | 'tank' | 'boss';
+  /** Texture name (variant bosses use their own baked art). */
+  texture: string;
+  flash: string;
   wobble: number;
   shadowY: number;
   shadowScale: number;
@@ -103,16 +113,32 @@ interface EnemyVisual {
   alwaysHpBar: boolean;
 }
 
+const BOSS_VARIANTS = new Set(['boss-shielded', 'boss-regen', 'boss-herald']);
+
 function enemyVisual(type: string): EnemyVisual {
   switch (type) {
     case 'runner':
-      return { key: 'runner', wobble: 1.8, shadowY: 13, shadowScale: 0.75, barW: 36, barH: 6, barY: -24, alwaysHpBar: false };
+      return { key: 'runner', texture: 'runner', flash: 'flash-runner', wobble: 1.8, shadowY: 13, shadowScale: 0.75, barW: 36, barH: 6, barY: -24, alwaysHpBar: false };
     case 'tank':
-      return { key: 'tank', wobble: 0.6, shadowY: 24, shadowScale: 1.5, barW: 48, barH: 6, barY: -34, alwaysHpBar: false };
+      return { key: 'tank', texture: 'tank', flash: 'flash-tank', wobble: 0.6, shadowY: 24, shadowScale: 1.5, barW: 48, barH: 6, barY: -34, alwaysHpBar: false };
     case 'boss':
-      return { key: 'boss', wobble: 0.5, shadowY: 43, shadowScale: 2.6, barW: 96, barH: 10, barY: -60, alwaysHpBar: true };
+    case 'boss-shielded':
+    case 'boss-regen':
+    case 'boss-herald':
+      return {
+        key: 'boss',
+        texture: BOSS_VARIANTS.has(type) ? type : 'boss',
+        flash: 'flash-boss',
+        wobble: 0.5,
+        shadowY: 43,
+        shadowScale: 2.6,
+        barW: 96,
+        barH: 10,
+        barY: -60,
+        alwaysHpBar: true,
+      };
     default:
-      return { key: 'grunt', wobble: 1, shadowY: 16, shadowScale: 1, barW: 40, barH: 6, barY: -26, alwaysHpBar: false };
+      return { key: 'grunt', texture: 'grunt', flash: 'flash-grunt', wobble: 1, shadowY: 16, shadowScale: 1, barW: 40, barH: 6, barY: -26, alwaysHpBar: false };
   }
 }
 
@@ -154,6 +180,9 @@ export class EntityView {
     bake('runner', this.runnerG());
     bake('tank', this.tankG());
     bake('boss', this.bossG());
+    bake('boss-shielded', this.bossG(0x3b82f6, 0x1e3a8a, 0xbfdbfe, 0x93c5fd, 0x1e40af, 0xe0f2fe, 0x1e40af));
+    bake('boss-regen', this.bossG(0x22c55e, 0x14532d, 0xbbf7d0, 0x86efac, 0x166534, 0xfef3c7, 0x7a5b00));
+    bake('boss-herald', this.bossG(0xf59e0b, 0x92400e, 0xfde68a, 0xfcd34d, 0xb45309, 0xfff7ed, 0x92400e));
     bake('flash-grunt', this.flashCircleG(20));
     bake('flash-runner', this.flashCircleG(16));
     bake('flash-tank', this.flashCircleG(30));
@@ -207,17 +236,17 @@ export class EntityView {
     for (const e of list) {
       seen.add(e.id);
       const vis = enemyVisual(e.type);
-      const key = vis.key;
       let n = this.enemies.get(e.id);
       if (!n) {
-        n = this.makeEnemy(key);
+        n = this.makeEnemy(vis);
         this.enemies.set(e.id, n);
         this.enemyLayer.addChild(n.root);
         n.root.scale.set(0.2); // spawn pop
-      } else if (n.type !== key) {
-        n.type = key;
-        n.body.texture = this.tex.get(key) ?? PIXI.Texture.WHITE;
-        n.flash.texture = this.tex.get(`flash-${key}`) ?? PIXI.Texture.WHITE;
+      } else if (n.textureName !== vis.texture) {
+        n.type = vis.key;
+        n.textureName = vis.texture;
+        n.body.texture = this.tex.get(vis.texture) ?? PIXI.Texture.WHITE;
+        n.flash.texture = this.tex.get(vis.flash) ?? PIXI.Texture.WHITE;
       }
       if (e.hp < n.lastHp) this.flashEnemy(e.id);
       n.lastHp = e.hp;
@@ -237,20 +266,37 @@ export class EntityView {
         n.flash.alpha = 0;
       }
 
-      // HP bar only when damaged (spec §74) — bosses always show theirs.
-      const frac = e.maxHp > 0 ? Math.min(1, Math.max(0, e.hp / e.maxHp)) : 0;
-      const visible = vis.alwaysHpBar || frac < 0.999;
-      if (visible !== n.lastHpVisible || Math.abs(frac - n.lastHpFrac) > 0.01) {
+      // HP bar: shields show as a blue bar until broken; bosses always show.
+      const shield = e.shield ?? 0;
+      const maxShield = e.maxShield ?? 0;
+      const hasShield = maxShield > 0 && shield > 0;
+      const frac = hasShield
+        ? Math.min(1, Math.max(0, shield / maxShield))
+        : e.maxHp > 0
+          ? Math.min(1, Math.max(0, e.hp / e.maxHp))
+          : 0;
+      const visible = vis.alwaysHpBar || hasShield || frac < 0.999;
+      if (
+        visible !== n.lastHpVisible ||
+        hasShield !== n.lastHasShield ||
+        Math.abs(frac - n.lastHpFrac) > 0.01
+      ) {
         n.lastHpVisible = visible;
+        n.lastHasShield = hasShield;
         n.lastHpFrac = frac;
         n.hpBar.visible = visible;
         if (visible) {
           const { barW: bw, barH: bh } = vis;
+          const fill = hasShield
+            ? 0x60a5fa
+            : frac > 0.55
+              ? 0x4ade80
+              : frac > 0.28
+                ? 0xfbbf24
+                : 0xef4444;
           n.hpBar.clear();
           n.hpBar.roundRect(0, 0, bw, bh, bh / 2).fill({ color: 0x1f2937, alpha: 0.85 });
-          n.hpBar
-            .roundRect(1, 1, (bw - 2) * frac, bh - 2, (bh - 2) / 2)
-            .fill({ color: frac > 0.55 ? 0x4ade80 : frac > 0.28 ? 0xfbbf24 : 0xef4444 });
+          n.hpBar.roundRect(1, 1, (bw - 2) * frac, bh - 2, (bh - 2) / 2).fill({ color: fill });
         }
       }
     }
@@ -263,16 +309,15 @@ export class EntityView {
     }
   }
 
-  private makeEnemy(type: string): EnemyNode {
-    const vis = enemyVisual(type);
+  private makeEnemy(vis: EnemyVisual): EnemyNode {
     const pooled = this.deadPool.pop();
     const root = pooled?.root ?? new PIXI.Container();
     root.eventMode = 'none';
     const body = pooled?.body ?? new PIXI.Sprite();
-    body.texture = this.tex.get(type) ?? PIXI.Texture.WHITE;
+    body.texture = this.tex.get(vis.texture) ?? PIXI.Texture.WHITE;
     body.anchor.set(0.5);
     const flash = pooled?.flash ?? new PIXI.Sprite();
-    flash.texture = this.tex.get(`flash-${type}`) ?? PIXI.Texture.WHITE;
+    flash.texture = this.tex.get(vis.flash) ?? PIXI.Texture.WHITE;
     flash.anchor.set(0.5);
     flash.alpha = 0;
     const hpBar = pooled?.hpBar ?? new PIXI.Graphics();
@@ -302,7 +347,9 @@ export class EntityView {
       lastHp: Number.POSITIVE_INFINITY,
       lastHpFrac: 1,
       lastHpVisible: false,
-      type,
+      lastHasShield: false,
+      type: vis.key,
+      textureName: vis.texture,
     };
   }
 
@@ -526,26 +573,34 @@ export class EntityView {
     return g;
   }
 
-  private bossG(): PIXI.Graphics {
+  private bossG(
+    body = 0x9f1239,
+    edge = 0x4c0519,
+    belly = 0xfca5a5,
+    spike = 0xd1d5db,
+    spikeEdge = 0x6b7280,
+    horn = 0xfef3c7,
+    hornEdge = 0x7a5b00,
+  ): PIXI.Graphics {
     const g = new PIXI.Graphics();
-    // Hulking crimson warlord.
-    g.circle(52, 56, 40).fill({ color: 0x9f1239 });
-    g.circle(52, 56, 40).stroke({ width: 7, color: 0x4c0519 });
-    g.ellipse(52, 70, 22, 15).fill({ color: 0xfca5a5 });
+    // Hulking warlord (palette swaps per variant).
+    g.circle(52, 56, 40).fill({ color: body });
+    g.circle(52, 56, 40).stroke({ width: 7, color: edge });
+    g.ellipse(52, 70, 22, 15).fill({ color: belly });
     // Spiked pauldrons.
-    g.circle(20, 42, 16).fill({ color: 0x7f1d1d });
-    g.circle(20, 42, 16).stroke({ width: 5, color: 0x4c0519 });
-    g.circle(84, 42, 16).fill({ color: 0x7f1d1d });
-    g.circle(84, 42, 16).stroke({ width: 5, color: 0x4c0519 });
-    g.poly([8, 30, 20, 12, 32, 30]).fill({ color: 0xd1d5db });
-    g.poly([8, 30, 20, 12, 32, 30]).stroke({ width: 3, color: 0x6b7280 });
-    g.poly([72, 30, 84, 12, 96, 30]).fill({ color: 0xd1d5db });
-    g.poly([72, 30, 84, 12, 96, 30]).stroke({ width: 3, color: 0x6b7280 });
-    // Golden crown horns.
-    g.poly([26, 24, 34, 2, 42, 26]).fill({ color: 0xfef3c7 });
-    g.poly([26, 24, 34, 2, 42, 26]).stroke({ width: 3, color: 0x7a5b00 });
-    g.poly([62, 26, 70, 2, 78, 24]).fill({ color: 0xfef3c7 });
-    g.poly([62, 26, 70, 2, 78, 24]).stroke({ width: 3, color: 0x7a5b00 });
+    g.circle(20, 42, 16).fill({ color: edge });
+    g.circle(20, 42, 16).stroke({ width: 5, color: edge });
+    g.circle(84, 42, 16).fill({ color: edge });
+    g.circle(84, 42, 16).stroke({ width: 5, color: edge });
+    g.poly([8, 30, 20, 12, 32, 30]).fill({ color: spike });
+    g.poly([8, 30, 20, 12, 32, 30]).stroke({ width: 3, color: spikeEdge });
+    g.poly([72, 30, 84, 12, 96, 30]).fill({ color: spike });
+    g.poly([72, 30, 84, 12, 96, 30]).stroke({ width: 3, color: spikeEdge });
+    // Crown horns.
+    g.poly([26, 24, 34, 2, 42, 26]).fill({ color: horn });
+    g.poly([26, 24, 34, 2, 42, 26]).stroke({ width: 3, color: hornEdge });
+    g.poly([62, 26, 70, 2, 78, 24]).fill({ color: horn });
+    g.poly([62, 26, 70, 2, 78, 24]).stroke({ width: 3, color: hornEdge });
     // Glowing angry eyes.
     g.circle(38, 50, 9).fill({ color: 0x111827 });
     g.circle(66, 50, 9).fill({ color: 0x111827 });

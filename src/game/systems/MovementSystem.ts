@@ -35,7 +35,9 @@ export function updateMovement(
     }
 
     let remaining =
-      effectiveSpeed(enemy.speed, enemy.slowTimeLeft, enemy.slowFactor) * delta;
+      effectiveSpeed(enemy.speed, enemy.slowTimeLeft, enemy.slowFactor) *
+      (enemy.auraMult ?? 1) *
+      delta;
 
     // Walk along successive waypoints within this tick.
     while (remaining > 0 && enemy.alive) {

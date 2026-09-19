@@ -24,6 +24,7 @@ export type SoundName =
   | 'explosion'
   | 'enemy-hit'
   | 'enemy-death'
+  | 'shield-break'
   | 'boss-spawn'
   | 'boss-death'
   | 'wave-start'
@@ -240,6 +241,11 @@ const SOUNDS: Record<SoundName, (a: Player) => void> = {
   'enemy-death': (a) => {
     a.tone({ freq: 500, freqEnd: 120, duration: 0.14, volume: 0.16, type: 'sawtooth' });
     a.noise(0.08, 0.1, 2500, 0, 'highpass');
+  },
+  'shield-break': (a) => {
+    a.noise(0.22, 0.3, 6000, 0, 'highpass');
+    a.tone({ freq: 1800, freqEnd: 500, duration: 0.2, volume: 0.16, type: 'triangle' });
+    a.tone({ freq: 900, freqEnd: 300, duration: 0.24, volume: 0.12, type: 'sine', delay: 0.03 });
   },
   'boss-spawn': (a) => {
     a.tone({ freq: 82, duration: 0.5, volume: 0.42, type: 'sawtooth' });

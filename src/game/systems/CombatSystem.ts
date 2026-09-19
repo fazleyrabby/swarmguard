@@ -110,7 +110,21 @@ export function damageEnemy(
   events: EventBus,
 ): void {
   if (!enemy.alive) return;
-  enemy.hp -= damage;
+  let remaining = damage;
+
+  // Absorbing shield soaks damage before HP (shield ability).
+  if (enemy.shield && enemy.shield > 0) {
+    const absorbed = Math.min(enemy.shield, remaining);
+    enemy.shield -= absorbed;
+    remaining -= absorbed;
+    if (enemy.shield <= 0) {
+      enemy.shield = 0;
+      events.emit('enemy:shield-broken', enemy);
+    }
+    if (remaining <= 0) return;
+  }
+
+  enemy.hp -= remaining;
   if (enemy.hp <= 0) {
     enemy.alive = false;
     addGold(state, enemy.reward);

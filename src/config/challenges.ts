@@ -57,6 +57,11 @@ export const CHALLENGES: ChallengeDefinition[] = [
     name: 'Endless',
     description: 'No victory at wave 10 — survive as long as you can.',
   },
+  {
+    id: 'boss-rush',
+    name: 'Boss Rush',
+    description: 'Every wave is a single boss. No trash, no mercy.',
+  },
 ];
 
 export const DEFAULT_CHALLENGE = CHALLENGES[0];

@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { generateWave, enemyCountForWave, expandSpawnQueue, isBossWave } from '../config/waves';
 import { TOWERS, TOWER_IDS, getTowerLevel } from '../config/towers';
-import { ENEMIES } from '../config/enemies';
+import { ENEMIES, isBossType } from '../config/enemies';
 import { MAPS, getMap } from '../config/maps';
 import { getChallenge } from '../config/challenges';
 import { AchievementStore, evaluateAchievements } from './achievements';
 import { createInitialState } from './GameState';
 import { Game } from './Game';
+import { EventBus } from './EventBus';
 import { canAfford, spendGold, addGold } from './systems/EconomySystem';
 import { acquireTarget } from './systems/TargetingSystem';
 import { makeEnemy } from './systems/SpawnSystem';
+import { damageEnemy } from './systems/CombatSystem';
+import { updateAbilities } from './systems/AbilitySystem';
 import type { Enemy } from './entities';
 
 function fakeEnemy(over: Partial<Enemy> & { id: number }): Enemy {
@@ -40,13 +43,20 @@ describe('boss waves', () => {
   });
   it('boss waves define a boss and append it last in the queue', () => {
     const def = generateWave(10);
-    expect(def.boss).toBe('boss');
+    expect(isBossType(def.boss!)).toBe(true);
+    expect(def.boss).toBe('boss-shielded');
     const queue = expandSpawnQueue(def, 1);
-    expect(queue[queue.length - 1]).toBe('boss');
-    expect(queue.filter((t) => t === 'boss')).toHaveLength(1);
+    expect(queue[queue.length - 1]).toBe('boss-shielded');
+    expect(queue.filter((t) => t === 'boss-shielded')).toHaveLength(1);
     // Swarm count is unchanged; the boss is extra.
     expect(def.totalEnemies).toBe(100);
     expect(queue).toHaveLength(101);
+  });
+  it('boss variants cycle by decade', () => {
+    expect(generateWave(10).boss).toBe('boss-shielded');
+    expect(generateWave(20).boss).toBe('boss-regen');
+    expect(generateWave(30).boss).toBe('boss-herald');
+    expect(generateWave(40).boss).toBe('boss-shielded');
   });
   it('non-boss waves have no boss', () => {
     expect(generateWave(5).boss).toBeUndefined();
@@ -56,6 +66,53 @@ describe('boss waves', () => {
     const boss = makeEnemy('boss', 1.75, 1.2);
     expect(boss.hp).toBeGreaterThan(ENEMIES.tank.hp);
     expect(boss.reward).toBeGreaterThan(ENEMIES.tank.reward);
+  });
+});
+
+describe('boss abilities', () => {
+  it('a shield absorbs damage before HP', () => {
+    const s = createInitialState();
+    const events = new EventBus();
+    const boss = makeEnemy('boss-shielded', 1, 1, s.map.spawn);
+    const hp0 = boss.hp;
+    const shield0 = boss.maxShield ?? 0;
+    damageEnemy(s, boss, 500, events);
+    expect(boss.shield).toBe(shield0 - 500);
+    expect(boss.hp).toBe(hp0);
+    damageEnemy(s, boss, 800, events);
+    expect(boss.shield).toBe(0);
+    expect(boss.hp).toBe(hp0 - (800 - 700));
+  });
+  it('regen heals over time', () => {
+    const s = createInitialState();
+    const events = new EventBus();
+    const boss = makeEnemy('boss-regen', 1, 1, s.map.spawn);
+    boss.hp = 1000;
+    s.enemies = [boss];
+    updateAbilities(s, 1, events);
+    expect(boss.hp).toBeCloseTo(1000 + (boss.regenPerSec ?? 0), 5);
+  });
+  it('herald buffs the speed of nearby enemies', () => {
+    const s = createInitialState();
+    const events = new EventBus();
+    const herald = makeEnemy('boss-herald', 1, 1, s.map.spawn);
+    const near = makeEnemy('grunt', 1, 1, s.map.spawn);
+    const far = makeEnemy('grunt', 1, 1, s.map.spawn);
+    near.x = herald.x + 50;
+    near.y = herald.y;
+    far.x = herald.x + (herald.auraRadius ?? 0) + 200;
+    far.y = herald.y;
+    s.enemies = [herald, near, far];
+    updateAbilities(s, 0.016, events);
+    expect(near.auraMult).toBeCloseTo(1 + (herald.auraSpeedBonus ?? 0), 5);
+    expect(far.auraMult).toBe(1);
+  });
+  it('boss rush spawns only one boss per wave', () => {
+    const g = new Game(1, undefined, getChallenge('boss-rush'));
+    g.startGame();
+    g.startWave();
+    expect(g.state.spawnQueue).toEqual(['boss-shielded']);
+    expect(g.state.waveTotalEnemies).toBe(0);
   });
 });
 

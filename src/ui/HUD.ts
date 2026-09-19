@@ -440,11 +440,13 @@ export class HUD {
     });
   }
 
-  showWaveBanner(wave: number, total: number, boss = false): void {
+  showWaveBanner(wave: number, total: number, bossName?: string): void {
     this.clearCard();
     this.banner(
-      boss ? `☠ WAVE ${wave} — BOSS INCOMING!` : `⚔ WAVE ${wave} — ${total} enemies!`,
-      boss ? 2800 : 2200,
+      bossName
+        ? `☠ WAVE ${wave} — BOSS: ${bossName.toUpperCase()}!`
+        : `⚔ WAVE ${wave} — ${total} enemies!`,
+      bossName ? 2800 : 2200,
     );
   }
 

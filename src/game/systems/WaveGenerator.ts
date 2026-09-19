@@ -12,6 +12,7 @@
  */
 import {
   generateWave as configGenerateWave,
+  generateBossRushWave as configGenerateBossRushWave,
   expandSpawnQueue,
   type WaveCompositionEntry,
   type WaveDefinition,
@@ -25,6 +26,12 @@ export type { WaveCompositionEntry, WaveDefinition };
 export function generateWave(waveNumber: number): WaveDefinition {
   const wave = Math.max(1, Math.floor(waveNumber));
   return configGenerateWave(wave);
+}
+
+/** Boss-only wave for the Boss Rush challenge. */
+export function generateBossRushWave(waveNumber: number): WaveDefinition {
+  const wave = Math.max(1, Math.floor(waveNumber));
+  return configGenerateBossRushWave(wave);
 }
 
 /**

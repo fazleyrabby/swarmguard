@@ -132,6 +132,14 @@ export function isBossWave(wave: number): boolean {
   return wave > 0 && wave % 10 === 0;
 }
 
+/** Boss variants cycle so wave 10/20/30 feel different. */
+const BOSS_CYCLE: EnemyType[] = ['boss-shielded', 'boss-regen', 'boss-herald'];
+
+export function bossTypeForWave(wave: number): EnemyType {
+  const cycle = Math.max(0, Math.floor(wave / 10) - 1);
+  return BOSS_CYCLE[cycle % BOSS_CYCLE.length];
+}
+
 export function enemyCountForWave(wave: number): number {
   const tabled = WAVE_TABLE[wave];
   if (tabled) return tabled.enemies;
@@ -160,7 +168,22 @@ export function generateWave(wave: number): WaveDefinition {
     healthMultiplier,
     speedMultiplier,
     completionReward: WAVE_TUNING.baseCompletionReward + wave * WAVE_TUNING.completionRewardPerWave,
-    boss: isBossWave(wave) ? 'boss' : undefined,
+    boss: isBossWave(wave) ? bossTypeForWave(wave) : undefined,
+  };
+}
+
+/**
+ * Boss Rush modifier: a wave made of a single boss (no trash) with a bigger
+ * completion reward. Health/speed scaling still comes from `generateWave`.
+ */
+export function generateBossRushWave(wave: number): WaveDefinition {
+  const base = generateWave(wave);
+  return {
+    ...base,
+    totalEnemies: 0,
+    composition: [],
+    boss: bossTypeForWave(wave),
+    completionReward: base.completionReward + 60,
   };
 }
 

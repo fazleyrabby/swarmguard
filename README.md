@@ -11,9 +11,9 @@ Built with **PixiJS + TypeScript + Vite**. No backend, no accounts, no external 
 - **Upgrade branches** — at level 3, Crossbow (Rapid Fire / Arbalest) and Cannon (Mortar / Shrapnel) specialize into distinct playstyles.
 - **Three maps** — Meadow Vale, Serpent Canyon and Frozen Pass, each with its own path layout, build slots and visual theme. Pick one from the main menu.
 - **Three enemy types** — Grunt, Runner, Tank — with distinct HP, speed, damage and bounty.
-- **Boss waves** — every 10th wave sends a Warlord: huge HP, an always-visible health bar, and a screen-shaking death.
+- **Boss waves** — every 10th wave sends a boss with an always-visible health bar and a screen-shaking death. Variants cycle by decade: **Bulwark** (absorbs damage with a shield), **Leech** (regenerates HP), **Herald** (hastens nearby enemies).
 - **10 hand-tuned waves** plus an **endless mode** with scaling HP/speed and a growing Tank share.
-- **Challenge runs** — Standard, Sudden Death, Poverty, Onslaught, Glass Cannon and Endless, selectable from the menu.
+- **Challenge runs** — Standard, Sudden Death, Poverty, Onslaught, Glass Cannon, Endless and Boss Rush, selectable from the menu.
 - **10 persistent achievements** with unlock toasts and a viewer on the main menu.
 - **Live total-visit counter** in the footer — backed by the self-hosted homelab `view-counter` API (`views.fazleyrabbi.xyz`), counting once per session and skipping dev/bots.
 - **Four targeting modes** — First, Nearest, Strongest, Weakest.
