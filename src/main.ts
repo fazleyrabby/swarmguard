@@ -178,6 +178,13 @@ async function boot(): Promise<void> {
     else game.pause();
   }
 
+  // Auto-pause when the tab is hidden or window loses focus (avoids
+  // losing a run to background throttling).
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) game.pause();
+  });
+  window.addEventListener('blur', () => game.pause());
+
   // ------------------------------------------------------- picking
   // Build slots are handled by WorldView's own slot plates (mouse + touch
   // via Pixi pointer events). Towers need a canvas-level picker: it runs
@@ -269,6 +276,14 @@ async function boot(): Promise<void> {
 
   game.events.on('tower:upgraded', () => {
     audio.play('tower-upgrade');
+    panels.refresh();
+  });
+
+  game.events.on('tower:sold', (payload) => {
+    const tower = payload as { x: number; y: number; refund: number };
+    worldView.refreshSlots();
+    worldView.hideRange();
+    effects.gold(tower.x, tower.y, tower.refund);
     panels.refresh();
   });
 

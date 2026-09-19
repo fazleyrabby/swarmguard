@@ -73,4 +73,21 @@ describe('game flow', () => {
     const e = makeEnemy('grunt', 1.75, 1.2);
     expect(e.hp).toBeGreaterThan(100);
   });
+  it('sell refunds 70% and frees the slot', () => {
+    const g = new Game(7);
+    g.startGame();
+    const goldBefore = g.state.gold;
+    const t = g.buildTower('slot-1', 'crossbow');
+    expect(t).toBeDefined();
+    g.upgradeTower(t!.id); // +100 invested
+    const refund = g.sellTower(t!.id);
+    // invested = 50 + 100 = 150, refund = floor(150 * 0.7) = 105
+    expect(refund).toBe(105);
+    expect(g.state.gold).toBe(goldBefore - 50 - 100 + 105);
+    expect(g.state.towers).toHaveLength(0);
+    const slot = g.state.buildSlots.find((s) => s.id === 'slot-1');
+    expect(slot?.occupied).toBe(false);
+    // Slot reusable after sell.
+    expect(g.buildTower('slot-1', 'crossbow')).toBeDefined();
+  });
 });

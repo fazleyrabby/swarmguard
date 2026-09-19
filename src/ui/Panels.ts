@@ -233,6 +233,17 @@ export class Panels {
       wrap.appendChild(up);
     }
 
+    const refund = sellRefundFor(tower.type, tower.level);
+    const sell = document.createElement('button');
+    sell.className = 'btn btn-block';
+    sell.innerHTML = `💰 Sell → <strong>+${refund}g</strong><small>70% refund</small>`;
+    sell.addEventListener('click', () => {
+      const got = this.game.sellTower(tower.id);
+      this.audio.play(got > 0 ? 'tower-sell' : 'error');
+      this.close();
+    });
+    wrap.appendChild(sell);
+
     wrap.appendChild(this.closeRow());
     return wrap;
   }
