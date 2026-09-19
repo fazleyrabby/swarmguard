@@ -9,6 +9,7 @@ Built with **PixiJS + TypeScript + Vite**. No backend, no accounts, no external 
 - **Three tower types** — Crossbow (fast single-target), Cannon (heavy splash), Bomb Tower (large AoE + slow).
 - **5 upgrade levels** per tower, with live stat/cost previews and a sell-for-70% option.
 - **Three enemy types** — Grunt, Runner, Tank — with distinct HP, speed, damage and bounty.
+- **Boss waves** — every 10th wave sends a Warlord: huge HP, an always-visible health bar, and a screen-shaking death.
 - **10 hand-tuned waves** plus an **endless mode** with scaling HP/speed and a growing Tank share.
 - **Four targeting modes** — First, Nearest, Strongest, Weakest.
 - **Game feel** — particles, screen shake, floating damage numbers, hit/death FX, generated WebAudio sound effects.

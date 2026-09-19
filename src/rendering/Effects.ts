@@ -194,6 +194,31 @@ export class Effects {
     this.flash(x, y, big ? 46 : 30, 0xffffff, 0.1);
   }
 
+  /** Boss death: huge pop, shockwave rings, debris and a strong shake. */
+  bossDeath(x: number, y: number, color = 0x9f1239): void {
+    for (let i = 0; i < 34; i++) {
+      const p = this.spawn();
+      if (!p) break;
+      const a = Math.random() * Math.PI * 2;
+      const sp = 260 * (0.3 + Math.random() * 1.1);
+      this.launch(p, {
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 110,
+        life: 0.5 + Math.random() * 0.5,
+        color: Math.random() < 0.6 ? color : 0xffffff,
+        scale: 1.1 * (0.7 + Math.random() * 0.9),
+        gravity: 620,
+        drag: 2,
+      });
+    }
+    this.flash(x, y, 130, 0xffffff, 0.22);
+    this.ring(x, y, 20, 240, 0xffffff, 0.55);
+    this.ring(x, y, 10, 170, color, 0.7);
+    this.ring(x, y, 6, 110, 0xfbbf24, 0.8);
+    if (this.shakeOn) this.onShake?.(0.85);
+  }
+
   /** Cannon impact: explosion + rings + tiny shake. */
   cannonBlast(x: number, y: number, radius = 60): void {
     this.blast(x, y, radius, [0xf97316, 0xfbbf24, 0x78716c], 14, 0.18);

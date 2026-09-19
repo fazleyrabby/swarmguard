@@ -2,7 +2,7 @@
  * Enemy balance data (spec §13–14, §28).
  */
 
-export type EnemyType = 'grunt' | 'runner' | 'tank';
+export type EnemyType = 'grunt' | 'runner' | 'tank' | 'boss';
 
 export interface EnemyDefinition {
   type: EnemyType;
@@ -54,6 +54,17 @@ export const ENEMIES: Record<EnemyType, EnemyDefinition> = {
     color: 0xb06bd6,
     description: 'Slow, armored, dangerous.',
   },
+  boss: {
+    type: 'boss',
+    name: 'Warlord',
+    hp: 3000,
+    speed: 16,
+    damage: 40,
+    reward: 200,
+    radius: 42,
+    color: 0x9f1239,
+    description: 'Wave boss. A huge slab of HP that hits the core hard.',
+  },
 };
 
-export const ENEMY_TYPES: EnemyType[] = ['grunt', 'runner', 'tank'];
+export const ENEMY_TYPES: EnemyType[] = ['grunt', 'runner', 'tank', 'boss'];

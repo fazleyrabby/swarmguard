@@ -30,6 +30,7 @@ export interface RenderProjectile {
 
 interface EnemyNode {
   root: PIXI.Container;
+  shadow: PIXI.Sprite;
   body: PIXI.Sprite;
   flash: PIXI.Sprite;
   hpBar: PIXI.Graphics;
@@ -83,6 +84,30 @@ function lerpAngle(a: number, b: number, t: number): number {
 
 const LEVEL_TINTS = [0xffffff, 0xfff3d6, 0xffe4a8, 0xffd27a, 0xffb84d];
 
+interface EnemyVisual {
+  key: 'grunt' | 'runner' | 'tank' | 'boss';
+  wobble: number;
+  shadowY: number;
+  shadowScale: number;
+  barW: number;
+  barH: number;
+  barY: number;
+  alwaysHpBar: boolean;
+}
+
+function enemyVisual(type: string): EnemyVisual {
+  switch (type) {
+    case 'runner':
+      return { key: 'runner', wobble: 1.8, shadowY: 13, shadowScale: 0.75, barW: 36, barH: 6, barY: -24, alwaysHpBar: false };
+    case 'tank':
+      return { key: 'tank', wobble: 0.6, shadowY: 24, shadowScale: 1.5, barW: 48, barH: 6, barY: -34, alwaysHpBar: false };
+    case 'boss':
+      return { key: 'boss', wobble: 0.5, shadowY: 43, shadowScale: 2.6, barW: 96, barH: 10, barY: -60, alwaysHpBar: true };
+    default:
+      return { key: 'grunt', wobble: 1, shadowY: 16, shadowScale: 1, barW: 40, barH: 6, barY: -26, alwaysHpBar: false };
+  }
+}
+
 /**
  * Cute procedural entity sprites (spec §37, §39–40, §71–75):
  * Graphics -> textures baked ONCE in `init()`, pooled Sprites/Containers,
@@ -120,9 +145,11 @@ export class EntityView {
     bake('grunt', this.gruntG());
     bake('runner', this.runnerG());
     bake('tank', this.tankG());
+    bake('boss', this.bossG());
     bake('flash-grunt', this.flashCircleG(20));
     bake('flash-runner', this.flashCircleG(16));
     bake('flash-tank', this.flashCircleG(30));
+    bake('flash-boss', this.flashCircleG(52, 52, 56));
     bake('tower-base-crossbow', this.towerBaseG(0xb0845a, 0x6b4226));
     bake('tower-base-cannon', this.towerBaseG(0x6b7280, 0x374151));
     bake('tower-base-bomb', this.towerBaseG(0x2dd4bf, 0x0f766e));
@@ -165,7 +192,8 @@ export class EntityView {
     const seen = new Set<number>();
     for (const e of list) {
       seen.add(e.id);
-      const key = e.type === 'runner' ? 'runner' : e.type === 'tank' ? 'tank' : 'grunt';
+      const vis = enemyVisual(e.type);
+      const key = vis.key;
       let n = this.enemies.get(e.id);
       if (!n) {
         n = this.makeEnemy(key);
@@ -182,12 +210,11 @@ export class EntityView {
 
       n.root.position.set(e.x, e.y);
       // Walk wobble: scale/rotation oscillation (spec §39).
-      const speedMul = key === 'runner' ? 1.8 : key === 'tank' ? 0.6 : 1;
-      const wob = Math.sin(time * 9 * speedMul + n.phase);
+      const wob = Math.sin(time * 9 * vis.wobble + n.phase);
       const k = Math.min(1, dt * 14);
       n.root.scale.x += (1 + wob * 0.055 - n.root.scale.x) * k;
       n.root.scale.y += (1 - wob * 0.055 - n.root.scale.y) * k;
-      n.body.rotation = Math.cos(time * 7 * speedMul + n.phase) * 0.09;
+      n.body.rotation = Math.cos(time * 7 * vis.wobble + n.phase) * 0.09;
 
       if (n.flashT > 0) {
         n.flashT -= dt;
@@ -196,18 +223,19 @@ export class EntityView {
         n.flash.alpha = 0;
       }
 
-      // HP bar only when damaged (spec §74), redrawn only on change.
+      // HP bar only when damaged (spec §74) — bosses always show theirs.
       const frac = e.maxHp > 0 ? Math.min(1, Math.max(0, e.hp / e.maxHp)) : 0;
-      const visible = frac < 0.999;
+      const visible = vis.alwaysHpBar || frac < 0.999;
       if (visible !== n.lastHpVisible || Math.abs(frac - n.lastHpFrac) > 0.01) {
         n.lastHpVisible = visible;
         n.lastHpFrac = frac;
         n.hpBar.visible = visible;
         if (visible) {
+          const { barW: bw, barH: bh } = vis;
           n.hpBar.clear();
-          n.hpBar.roundRect(0, 0, 40, 6, 3).fill({ color: 0x1f2937, alpha: 0.85 });
+          n.hpBar.roundRect(0, 0, bw, bh, bh / 2).fill({ color: 0x1f2937, alpha: 0.85 });
           n.hpBar
-            .roundRect(1, 1, 38 * frac, 4, 2)
+            .roundRect(1, 1, (bw - 2) * frac, bh - 2, (bh - 2) / 2)
             .fill({ color: frac > 0.55 ? 0x4ade80 : frac > 0.28 ? 0xfbbf24 : 0xef4444 });
         }
       }
@@ -222,6 +250,7 @@ export class EntityView {
   }
 
   private makeEnemy(type: string): EnemyNode {
+    const vis = enemyVisual(type);
     const pooled = this.deadPool.pop();
     const root = pooled?.root ?? new PIXI.Container();
     root.eventMode = 'none';
@@ -235,22 +264,25 @@ export class EntityView {
     const hpBar = pooled?.hpBar ?? new PIXI.Graphics();
     hpBar.visible = false;
     hpBar.eventMode = 'none';
+    const shadow = pooled?.shadow ?? new PIXI.Sprite(this.tex.get('shadow'));
+    shadow.anchor.set(0.5);
+    // Sun from upper-left: shadows fall down-right (per-type size).
+    shadow.position.set(4, vis.shadowY + 3);
+    shadow.scale.set(vis.shadowScale);
+    shadow.alpha = 0.9;
+    // Fresh nodes get their children mounted once; pooled nodes just ensure order.
     if (!pooled) {
-      const shadow = new PIXI.Sprite(this.tex.get('shadow'));
-      shadow.anchor.set(0.5);
-      // Sun from upper-left: shadows fall down-right.
-      shadow.position.set(4, (type === 'tank' ? 24 : type === 'runner' ? 13 : 16) + 3);
-      shadow.scale.set(type === 'tank' ? 1.5 : type === 'runner' ? 0.75 : 1);
-      shadow.alpha = 0.9;
       root.addChild(shadow, body, flash, hpBar);
-      hpBar.position.set(-20, type === 'tank' ? -34 : -26);
     } else {
+      if (shadow.parent !== root) root.addChild(shadow);
       if (body.parent !== root) root.addChild(body);
       if (flash.parent !== root) root.addChild(flash);
       if (hpBar.parent !== root) root.addChild(hpBar);
     }
+    // HP bar geometry is per-type and must be reset even for pooled nodes.
+    hpBar.position.set(-vis.barW / 2, vis.barY);
     return {
-      root, body, flash, hpBar,
+      root, shadow, body, flash, hpBar,
       phase: Math.random() * Math.PI * 2,
       flashT: 0,
       lastHp: Number.POSITIVE_INFINITY,
@@ -468,9 +500,46 @@ export class EntityView {
     return g;
   }
 
-  private flashCircleG(r: number): PIXI.Graphics {
+  private bossG(): PIXI.Graphics {
     const g = new PIXI.Graphics();
-    g.circle(24, 24, r * 0.8).fill({ color: 0xffffff });
+    // Hulking crimson warlord.
+    g.circle(52, 56, 40).fill({ color: 0x9f1239 });
+    g.circle(52, 56, 40).stroke({ width: 7, color: 0x4c0519 });
+    g.ellipse(52, 70, 22, 15).fill({ color: 0xfca5a5 });
+    // Spiked pauldrons.
+    g.circle(20, 42, 16).fill({ color: 0x7f1d1d });
+    g.circle(20, 42, 16).stroke({ width: 5, color: 0x4c0519 });
+    g.circle(84, 42, 16).fill({ color: 0x7f1d1d });
+    g.circle(84, 42, 16).stroke({ width: 5, color: 0x4c0519 });
+    g.poly([8, 30, 20, 12, 32, 30]).fill({ color: 0xd1d5db });
+    g.poly([8, 30, 20, 12, 32, 30]).stroke({ width: 3, color: 0x6b7280 });
+    g.poly([72, 30, 84, 12, 96, 30]).fill({ color: 0xd1d5db });
+    g.poly([72, 30, 84, 12, 96, 30]).stroke({ width: 3, color: 0x6b7280 });
+    // Golden crown horns.
+    g.poly([26, 24, 34, 2, 42, 26]).fill({ color: 0xfef3c7 });
+    g.poly([26, 24, 34, 2, 42, 26]).stroke({ width: 3, color: 0x7a5b00 });
+    g.poly([62, 26, 70, 2, 78, 24]).fill({ color: 0xfef3c7 });
+    g.poly([62, 26, 70, 2, 78, 24]).stroke({ width: 3, color: 0x7a5b00 });
+    // Glowing angry eyes.
+    g.circle(38, 50, 9).fill({ color: 0x111827 });
+    g.circle(66, 50, 9).fill({ color: 0x111827 });
+    g.circle(39, 50, 4.5).fill({ color: 0xfde047 });
+    g.circle(67, 50, 4.5).fill({ color: 0xfde047 });
+    g.circle(39, 49, 1.8).fill({ color: 0xffffff });
+    g.circle(67, 49, 1.8).fill({ color: 0xffffff });
+    g.poly([26, 40, 44, 46]).stroke({ width: 5, color: 0x4c0519, cap: 'round' });
+    g.poly([60, 46, 78, 40]).stroke({ width: 5, color: 0x4c0519, cap: 'round' });
+    // Tusked maw.
+    g.roundRect(38, 68, 28, 12, 5).fill({ color: 0x450a0a });
+    g.poly([40, 68, 44, 79, 48, 68]).fill({ color: 0xffffff });
+    g.poly([56, 68, 60, 79, 64, 68]).fill({ color: 0xffffff });
+    g.poly([70, 58, 76, 66, 72, 74]).stroke({ width: 2.5, color: 0x4c0519, cap: 'round' });
+    return g;
+  }
+
+  private flashCircleG(r: number, cx = 24, cy = 24): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    g.circle(cx, cy, r * 0.8).fill({ color: 0xffffff });
     return g;
   }
 

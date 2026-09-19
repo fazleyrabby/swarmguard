@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { generateWave, enemyCountForWave } from '../config/waves';
+import { generateWave, enemyCountForWave, expandSpawnQueue, isBossWave } from '../config/waves';
 import { TOWERS } from '../config/towers';
+import { ENEMIES } from '../config/enemies';
 import { createInitialState } from './GameState';
 import { Game } from './Game';
 import { canAfford, spendGold, addGold } from './systems/EconomySystem';
@@ -24,6 +25,34 @@ describe('waves (spec §55)', () => {
   });
   it('difficulty scales up', () => {
     expect(generateWave(10).healthMultiplier).toBeGreaterThan(generateWave(1).healthMultiplier);
+  });
+});
+
+describe('boss waves', () => {
+  it('every 10th wave is a boss wave', () => {
+    expect(isBossWave(10)).toBe(true);
+    expect(isBossWave(20)).toBe(true);
+    expect(isBossWave(9)).toBe(false);
+    expect(isBossWave(11)).toBe(false);
+  });
+  it('boss waves define a boss and append it last in the queue', () => {
+    const def = generateWave(10);
+    expect(def.boss).toBe('boss');
+    const queue = expandSpawnQueue(def, 1);
+    expect(queue[queue.length - 1]).toBe('boss');
+    expect(queue.filter((t) => t === 'boss')).toHaveLength(1);
+    // Swarm count is unchanged; the boss is extra.
+    expect(def.totalEnemies).toBe(100);
+    expect(queue).toHaveLength(101);
+  });
+  it('non-boss waves have no boss', () => {
+    expect(generateWave(5).boss).toBeUndefined();
+    expect(expandSpawnQueue(generateWave(5), 1)).not.toContain('boss');
+  });
+  it('boss scales with wave hp multiplier', () => {
+    const boss = makeEnemy('boss', 1.75, 1.2);
+    expect(boss.hp).toBeGreaterThan(ENEMIES.tank.hp);
+    expect(boss.reward).toBeGreaterThan(ENEMIES.tank.reward);
   });
 });
 

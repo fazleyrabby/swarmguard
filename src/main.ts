@@ -242,9 +242,15 @@ async function boot(): Promise<void> {
 
   game.events.on('enemy:killed', (payload) => {
     const enemy = payload as { x: number; y: number; reward: number; type: keyof typeof ENEMIES };
-    effects.deathPop(enemy.x, enemy.y, ENEMIES[enemy.type]?.color ?? 0x4ade80);
+    const color = ENEMIES[enemy.type]?.color ?? 0x4ade80;
+    if (enemy.type === 'boss') {
+      effects.bossDeath(enemy.x, enemy.y, color);
+      audio.play('boss-death');
+    } else {
+      effects.deathPop(enemy.x, enemy.y, color);
+      audio.play('enemy-death');
+    }
     effects.gold(enemy.x, enemy.y, enemy.reward ?? 0);
-    audio.play('enemy-death');
   });
 
   game.events.on('base:damaged', () => {
@@ -254,7 +260,8 @@ async function boot(): Promise<void> {
 
   game.events.on('wave:started', (payload) => {
     const def = payload as WaveDefinition;
-    hud.showWaveBanner(def.wave, def.totalEnemies);
+    hud.showWaveBanner(def.wave, def.totalEnemies, !!def.boss);
+    if (def.boss) audio.play('boss-spawn');
     panels.close();
   });
 

@@ -305,9 +305,12 @@ export class HUD {
     });
   }
 
-  showWaveBanner(wave: number, total: number): void {
+  showWaveBanner(wave: number, total: number, boss = false): void {
     this.clearCard();
-    this.banner(`⚔ WAVE ${wave} — ${total} enemies!`, 2200);
+    this.banner(
+      boss ? `☠ WAVE ${wave} — BOSS INCOMING!` : `⚔ WAVE ${wave} — ${total} enemies!`,
+      boss ? 2800 : 2200,
+    );
   }
 
   showGameOver(stats: EndOfGameStats): void {

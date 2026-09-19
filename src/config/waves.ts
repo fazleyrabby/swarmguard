@@ -23,6 +23,8 @@ export interface WaveDefinition {
   speedMultiplier: number;
   /** Flat gold bonus for completing the wave. */
   completionReward: number;
+  /** Optional single boss that spawns at the end of the wave (every 10th). */
+  boss?: EnemyType;
 }
 
 export const WAVE_TUNING = {
@@ -125,6 +127,11 @@ function compositionForEndlessWave(wave: number): WaveCompositionEntry[] {
   ];
 }
 
+/** Bosses appear on every 10th wave (10, 20, 30, …). */
+export function isBossWave(wave: number): boolean {
+  return wave > 0 && wave % 10 === 0;
+}
+
 export function enemyCountForWave(wave: number): number {
   const tabled = WAVE_TABLE[wave];
   if (tabled) return tabled.enemies;
@@ -153,6 +160,7 @@ export function generateWave(wave: number): WaveDefinition {
     healthMultiplier,
     speedMultiplier,
     completionReward: WAVE_TUNING.baseCompletionReward + wave * WAVE_TUNING.completionRewardPerWave,
+    boss: isBossWave(wave) ? 'boss' : undefined,
   };
 }
 
@@ -183,6 +191,9 @@ export function expandSpawnQueue(def: WaveDefinition, seed = 1): EnemyType[] {
     const j = Math.floor(rand() * (i + 1));
     [queue[i], queue[j]] = [queue[j], queue[i]];
   }
+
+  // Boss always spawns last, after the swarm has thinned out.
+  if (def.boss) queue.push(def.boss);
   return queue;
 }
 
