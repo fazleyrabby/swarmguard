@@ -75,7 +75,7 @@ export class WorldView {
   private game: Game;
   private def: MapDef;
 
-  private baseRing = new PIXI.Graphics();
+  private baseBar = new PIXI.Graphics();
   private baseGlowA: PIXI.Sprite | null = null;
   private baseGlowB: PIXI.Sprite | null = null;
   private baseCrystal: PIXI.Container | null = null;
@@ -208,26 +208,25 @@ export class WorldView {
     L.overlay.addChild(this.rangeG);
   }
 
+  /** Floating castle HP bar above the keep. Redrawn only on HP change. */
   private setBaseHp(hp: number, maxHp: number): void {
     const frac = Math.min(1, Math.max(0, maxHp > 0 ? hp / maxHp : 0));
     if (Math.abs(frac - this.lastHpFrac) < 0.001) return;
     this.lastHpFrac = frac;
-    const r = this.def.base.radius + 26;
-    const g = this.baseRing;
+    const g = this.baseBar;
     g.clear();
-    g.circle(0, 0, r).stroke({ width: 9, color: 0x3a2b1f, alpha: 0.85 });
+    const w = 150;
+    const h = 15;
+    const x = -w / 2;
+    const y = 0;
+    g.roundRect(x - 3, y - 3, w + 6, h + 6, 8).fill({ color: 0x2b2440, alpha: 0.85 });
+    g.roundRect(x, y, w, h, 6).fill({ color: 0x565064 });
     const color = frac > 0.55 ? 0x4ade80 : frac > 0.25 ? 0xfbbf24 : 0xef4444;
-    if (frac <= 0.001) return;
-    if (frac >= 0.999) {
-      // Full circle path (not a 2π arc): avoids an arc-seam artifact at the top.
-      g.circle(0, 0, r).stroke({ width: 9, color, cap: 'round' });
-    } else {
-      g.arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2).stroke({
-        width: 9,
-        color,
-        cap: 'round',
-      });
+    if (frac > 0.001) {
+      g.roundRect(x + 2, y + 2, Math.max(4, (w - 4) * frac), h - 4, 4).fill({ color });
     }
+    // Gloss tick.
+    g.roundRect(x + 5, y + 3.5, Math.max(0, (w - 10) * frac), 3, 1.5).fill({ color: 0xffffff, alpha: 0.45 });
   }
 
   private redrawRange(): void {
@@ -620,9 +619,10 @@ export class WorldView {
     root.addChild(flags);
     this.baseCrystal = flags;
 
-    this.baseRing = new PIXI.Graphics();
-    this.baseRing.eventMode = 'none';
-    root.addChild(this.baseRing);
+    this.baseBar = new PIXI.Graphics();
+    this.baseBar.eventMode = 'none';
+    this.baseBar.position.set(0, -112);
+    root.addChild(this.baseBar);
     this.lastHpFrac = -1;
   }
 
