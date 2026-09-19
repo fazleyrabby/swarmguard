@@ -17,7 +17,7 @@ Built with **PixiJS + TypeScript + Vite**. No backend, no accounts, no external 
 - **10 persistent achievements** with unlock toasts and a viewer on the main menu.
 - **Live total-visit counter** in the footer — backed by the self-hosted homelab `view-counter` API (`views.fazleyrabbi.xyz`), counting once per session and skipping dev/bots.
 - **Four targeting modes** — First, Nearest, Strongest, Weakest.
-- **Game feel** — particles, screen shake, floating damage numbers, hit/death FX, generated WebAudio sound effects.
+- **Game feel** — distance-synced walk gaits (squash/stretch, hop, lean-into-motion, grounded shadows), particles, screen shake, floating damage numbers, hit/death FX, generated WebAudio sound effects.
 - **Polish** — responsive full-height layout, fullscreen toggle, portrait zoom, settings, pause/speed controls (1x–3x), game-over and victory screens, highest-wave persistence.
 - **Performance** — baked textures, pooled sprites/projectiles, waypoint movement (no per-enemy pathfinding), targeting 60 FPS with 300+ enemies.
 

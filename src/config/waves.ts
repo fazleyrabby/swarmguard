@@ -182,9 +182,14 @@ export function generateWave(wave: number): WaveDefinition {
 export function generateBossRushWave(wave: number): WaveDefinition {
   const base = generateWave(wave);
   const boss = bossTypeForWave(wave);
+  // Escort = miniature versions of the boss (same theme + weaker ability).
   const escort: EnemyType =
-    boss === 'boss-shielded' ? 'tank' : boss === 'boss-regen' ? 'runner' : 'grunt';
-  const escortCount = Math.min(3 + wave * 2, 26);
+    boss === 'boss-shielded'
+      ? 'minion-shielded'
+      : boss === 'boss-regen'
+        ? 'minion-regen'
+        : 'minion-herald';
+  const escortCount = Math.min(6 + wave * 4, 46);
   const bossCount = 1 + Math.min(4, Math.floor((wave - 1) / 2));
   return {
     ...base,

@@ -9,7 +9,10 @@ export type EnemyType =
   | 'boss'
   | 'boss-shielded'
   | 'boss-regen'
-  | 'boss-herald';
+  | 'boss-herald'
+  | 'minion-shielded'
+  | 'minion-regen'
+  | 'minion-herald';
 
 /** Special boss behavior, handled generically by the ability system. */
 export type EnemyAbility = 'shield' | 'regen' | 'herald';
@@ -124,6 +127,46 @@ export const ENEMIES: Record<EnemyType, EnemyDefinition> = {
     auraSpeedBonus: 0.3,
     description: 'Boss that hastens every enemy around it. Kill it first.',
   },
+  'minion-shielded': {
+    type: 'minion-shielded',
+    name: 'Shieldling',
+    hp: 260,
+    speed: 24,
+    damage: 10,
+    reward: 14,
+    radius: 16,
+    color: 0x3b82f6,
+    ability: 'shield',
+    shield: 140,
+    description: 'Tiny Bulwark. Weak shield, but they come in packs.',
+  },
+  'minion-regen': {
+    type: 'minion-regen',
+    name: 'Sporeling',
+    hp: 320,
+    speed: 26,
+    damage: 10,
+    reward: 14,
+    radius: 16,
+    color: 0x22c55e,
+    ability: 'regen',
+    regenPerSec: 12,
+    description: 'Tiny Leech. Slowly heals, so finish it quickly.',
+  },
+  'minion-herald': {
+    type: 'minion-herald',
+    name: 'Heraldling',
+    hp: 240,
+    speed: 28,
+    damage: 10,
+    reward: 14,
+    radius: 16,
+    color: 0xf59e0b,
+    ability: 'herald',
+    auraRadius: 130,
+    auraSpeedBonus: 0.15,
+    description: 'Tiny Herald. Speeds up the friends around it.',
+  },
 };
 
 export const ENEMY_TYPES: EnemyType[] = [
@@ -134,6 +177,9 @@ export const ENEMY_TYPES: EnemyType[] = [
   'boss-shielded',
   'boss-regen',
   'boss-herald',
+  'minion-shielded',
+  'minion-regen',
+  'minion-herald',
 ];
 
 /** True for the plain boss and every boss variant. */

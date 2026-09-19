@@ -11,6 +11,8 @@ export interface RenderEnemy {
   maxHp: number;
   shield?: number;
   maxShield?: number;
+  /** Total distance walked — drives distance-synced footsteps. */
+  distanceTraveled?: number;
 }
 
 /** Structural tower view — `main.ts` maps sim towers via `toRenderState()`. */
@@ -46,6 +48,15 @@ interface EnemyNode {
   lastHasShield: boolean;
   type: string;
   textureName: string;
+  /** Motion state. */
+  popScale: number;
+  walkPhase: number;
+  hitPunch: number;
+  lastDist: number;
+  lastX: number;
+  lastY: number;
+  skewX: number;
+  skewY: number;
 }
 
 interface TowerNode {
@@ -101,26 +112,38 @@ const LEVEL_TINTS = [0xffffff, 0xfff3d6, 0xffe4a8, 0xffd27a, 0xffb84d];
 
 interface EnemyVisual {
   key: 'grunt' | 'runner' | 'tank' | 'boss';
-  /** Texture name (variant bosses use their own baked art). */
+  /** Texture name (variant bosses/minions use their own art or a scaled boss). */
   texture: string;
   flash: string;
   wobble: number;
+  /** Static body/flash scale (minions render the boss art small). */
+  bodyScale: number;
   shadowY: number;
   shadowScale: number;
   barW: number;
   barH: number;
   barY: number;
   alwaysHpBar: boolean;
+  /** Gait: hop height, squash amount, step frequency, lean (skew). */
+  hop: number;
+  squash: number;
+  stride: number;
+  lean: number;
 }
 
 const BOSS_VARIANTS = new Set(['boss-shielded', 'boss-regen', 'boss-herald']);
+const MINION_TEXTURE: Record<string, string> = {
+  'minion-shielded': 'boss-shielded',
+  'minion-regen': 'boss-regen',
+  'minion-herald': 'boss-herald',
+};
 
 function enemyVisual(type: string): EnemyVisual {
   switch (type) {
     case 'runner':
-      return { key: 'runner', texture: 'runner', flash: 'flash-runner', wobble: 1.8, shadowY: 13, shadowScale: 0.75, barW: 36, barH: 6, barY: -24, alwaysHpBar: false };
+      return { key: 'runner', texture: 'runner', flash: 'flash-runner', wobble: 1.8, bodyScale: 1, shadowY: 13, shadowScale: 0.75, barW: 36, barH: 6, barY: -24, alwaysHpBar: false, hop: 2.5, squash: 0.05, stride: 0.18, lean: 0.14 };
     case 'tank':
-      return { key: 'tank', texture: 'tank', flash: 'flash-tank', wobble: 0.6, shadowY: 24, shadowScale: 1.5, barW: 48, barH: 6, barY: -34, alwaysHpBar: false };
+      return { key: 'tank', texture: 'tank', flash: 'flash-tank', wobble: 0.6, bodyScale: 1, shadowY: 24, shadowScale: 1.5, barW: 48, barH: 6, barY: -34, alwaysHpBar: false, hop: 1.2, squash: 0.03, stride: 0.1, lean: 0.04 };
     case 'boss':
     case 'boss-shielded':
     case 'boss-regen':
@@ -130,15 +153,40 @@ function enemyVisual(type: string): EnemyVisual {
         texture: BOSS_VARIANTS.has(type) ? type : 'boss',
         flash: 'flash-boss',
         wobble: 0.5,
+        bodyScale: 1,
         shadowY: 43,
         shadowScale: 2.6,
         barW: 96,
         barH: 10,
         barY: -60,
         alwaysHpBar: true,
+        hop: 1.4,
+        squash: 0.04,
+        stride: 0.08,
+        lean: 0,
+      };
+    case 'minion-shielded':
+    case 'minion-regen':
+    case 'minion-herald':
+      return {
+        key: 'boss',
+        texture: MINION_TEXTURE[type] ?? 'boss',
+        flash: 'flash-boss',
+        wobble: 1.4,
+        bodyScale: 0.42,
+        shadowY: 18,
+        shadowScale: 1.0,
+        barW: 40,
+        barH: 6,
+        barY: -28,
+        alwaysHpBar: false,
+        hop: 5,
+        squash: 0.1,
+        stride: 0.22,
+        lean: 0.1,
       };
     default:
-      return { key: 'grunt', texture: 'grunt', flash: 'flash-grunt', wobble: 1, shadowY: 16, shadowScale: 1, barW: 40, barH: 6, barY: -26, alwaysHpBar: false };
+      return { key: 'grunt', texture: 'grunt', flash: 'flash-grunt', wobble: 1, bodyScale: 1, shadowY: 16, shadowScale: 1, barW: 40, barH: 6, barY: -26, alwaysHpBar: false, hop: 4, squash: 0.07, stride: 0.16, lean: 0.06 };
   }
 }
 
@@ -220,7 +268,10 @@ export class EntityView {
   /** White-flash hit feedback (spec §42). Also auto-fired on HP drops. */
   flashEnemy(id: number): void {
     const n = this.enemies.get(id);
-    if (n) n.flashT = 0.09;
+    if (n) {
+      n.flashT = 0.09;
+      n.hitPunch = 1;
+    }
   }
 
   /** Recoil kick on fire (spec §40). Wired to `tower:fired` in main.ts. */
@@ -252,12 +303,52 @@ export class EntityView {
       n.lastHp = e.hp;
 
       n.root.position.set(e.x, e.y);
-      // Walk wobble: scale/rotation oscillation (spec §39).
-      const wob = Math.sin(time * 9 * vis.wobble + n.phase);
-      const k = Math.min(1, dt * 14);
-      n.root.scale.x += (1 + wob * 0.055 - n.root.scale.x) * k;
-      n.root.scale.y += (1 - wob * 0.055 - n.root.scale.y) * k;
-      n.body.rotation = Math.cos(time * 7 * vis.wobble + n.phase) * 0.09;
+
+      // --- Fluid motion layer (transform-only, distance-synced) ---
+      // Footsteps advance with actual distance walked, so rhythm matches speed
+      // and stays framerate-independent.
+      const dist = e.distanceTraveled ?? 0;
+      let stepDist = n.lastDist === 0 ? 0 : dist - n.lastDist;
+      if (stepDist < 0 || stepDist > 200) stepDist = 0; // teleport/reset guard
+      n.lastDist = dist;
+      n.walkPhase += stepDist * vis.stride;
+      const hop = Math.abs(Math.sin(n.walkPhase));
+
+      // Spawn pop eases in once.
+      if (n.popScale < 1) n.popScale = Math.min(1, n.popScale + dt * 4);
+      n.root.scale.set(n.popScale);
+
+      // Jelly squash/stretch + hit punch.
+      n.hitPunch = Math.max(0, n.hitPunch - dt * 6);
+      const sx = 1 - hop * vis.squash + n.hitPunch * 0.18;
+      const sy = 1 + hop * vis.squash - n.hitPunch * 0.12;
+      n.body.scale.set(vis.bodyScale * sx, vis.bodyScale * sy);
+      n.flash.scale.set(vis.bodyScale * sx, vis.bodyScale * sy);
+
+      // Grounded shadow: body lifts on the hop, shadow stays put.
+      const lift = hop * vis.hop;
+      n.body.position.y = -lift;
+      n.flash.position.y = -lift;
+      n.shadow.scale.set(vis.shadowScale * (1 - hop * 0.12));
+
+      // Lean into travel direction (skew), smoothed.
+      if (Number.isNaN(n.lastX)) {
+        n.lastX = e.x;
+        n.lastY = e.y;
+      }
+      const vx = e.x - n.lastX;
+      const vy = e.y - n.lastY;
+      n.lastX = e.x;
+      n.lastY = e.y;
+      const clampSkew = (v: number) => Math.max(-0.22, Math.min(0.22, v));
+      const targetSkewX = clampSkew(vx * 0.03 * (vis.lean / 0.1 || 1));
+      const targetSkewY = clampSkew(vy * 0.03 * (vis.lean / 0.1 || 1));
+      const kS = Math.min(1, dt * 8);
+      n.skewX += (targetSkewX - n.skewX) * kS;
+      n.skewY += (targetSkewY - n.skewY) * kS;
+      n.body.skew.set(n.skewX, n.skewY);
+
+      n.body.rotation = Math.cos(n.walkPhase) * vis.lean;
 
       if (n.flashT > 0) {
         n.flashT -= dt;
@@ -320,6 +411,8 @@ export class EntityView {
     flash.texture = this.tex.get(vis.flash) ?? PIXI.Texture.WHITE;
     flash.anchor.set(0.5);
     flash.alpha = 0;
+    body.scale.set(vis.bodyScale);
+    flash.scale.set(vis.bodyScale);
     const hpBar = pooled?.hpBar ?? new PIXI.Graphics();
     hpBar.visible = false;
     hpBar.eventMode = 'none';
@@ -350,6 +443,14 @@ export class EntityView {
       lastHasShield: false,
       type: vis.key,
       textureName: vis.texture,
+      popScale: 0.2,
+      walkPhase: Math.random() * Math.PI * 2,
+      hitPunch: 0,
+      lastDist: 0,
+      lastX: Number.NaN,
+      lastY: Number.NaN,
+      skewX: 0,
+      skewY: 0,
     };
   }
 

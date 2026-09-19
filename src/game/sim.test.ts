@@ -112,12 +112,13 @@ describe('boss abilities', () => {
     g.startGame();
     g.startWave();
     const queue = g.state.spawnQueue;
-    expect(g.state.waveTotalEnemies).toBe(5);
-    expect(queue).toHaveLength(6);
+    expect(g.state.waveTotalEnemies).toBe(10);
+    expect(queue).toHaveLength(11);
     expect(queue[queue.length - 1]).toBe('boss-shielded');
     expect(queue.filter((t) => t === 'boss-shielded')).toHaveLength(1);
-    // Themed escort: Bulwark sends tanks.
-    expect(queue.filter((t) => t === 'tank')).toHaveLength(5);
+    // Escort is the matching minion (Bulwark → Shieldlings).
+    expect(queue.filter((t) => t === 'minion-shielded')).toHaveLength(10);
+    expect(isBossType('minion-shielded')).toBe(false);
   });
   it('boss rush boss count grows every 2 waves', () => {
     expect(generateBossRushWave(1).bossCount).toBe(1);
