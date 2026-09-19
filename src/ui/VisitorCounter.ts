@@ -1,16 +1,17 @@
 /**
- * Total-visit counter — fully client-side, no backend (Abacus API).
+ * Total-visit counter backed by the homelab "view-counter" service.
  *
- * Increments at most once per browser session, skipping dev/localhost and
- * likely bots. Shows a cached value immediately, then animates to the live
- * total. Same approach used on the-web-was-here (TrendTimeline).
+ * Self-hosted (PM2 + SQLite on the VPS), publicly served through the
+ * Cloudflare tunnel at https://views.fazleyrabbi.xyz. The service dedupes by
+ * hashed IP (10 min window) and ignores private/local IPs, so we only add
+ * light client-side guards (dev + bots + per-session) on top.
  *
- * Abacus endpoints: GET /hit/{ns}/{key} (increment) and /get/{ns}/{key}.
+ * API: GET /api/hit?project=&key=  (increment) and /api/get?project=&key=.
  */
 
-const ABACUS_BASE = 'https://abacus.jasoncameron.dev';
-const ABACUS_NS = 'swarmguard';
-const ABACUS_KEY = 'visits';
+const VIEWS_BASE = 'https://views.fazleyrabbi.xyz';
+const PROJECT = 'swarmguard';
+const KEY = 'visitors';
 const CACHE_KEY = 'swarmguard:visits';
 const SESSION_KEY = 'swarmguard:visitTracked';
 
@@ -97,8 +98,8 @@ export async function initVisitorCounter(): Promise<void> {
 
   const shouldTrack = !isDev() && !isBot() && !alreadyTracked;
   const endpoint = shouldTrack
-    ? `${ABACUS_BASE}/hit/${ABACUS_NS}/${ABACUS_KEY}`
-    : `${ABACUS_BASE}/get/${ABACUS_NS}/${ABACUS_KEY}`;
+    ? `${VIEWS_BASE}/api/hit?project=${PROJECT}&key=${KEY}`
+    : `${VIEWS_BASE}/api/get?project=${PROJECT}&key=${KEY}`;
   if (shouldTrack) {
     try {
       sessionStorage.setItem(SESSION_KEY, 'true');
@@ -111,8 +112,8 @@ export async function initVisitorCounter(): Promise<void> {
   try {
     const res = await fetch(endpoint, { signal: AbortSignal.timeout(4000) });
     if (res.ok) {
-      const data = (await res.json()) as { value?: number };
-      if (typeof data.value === 'number') current = data.value;
+      const data = (await res.json()) as { views?: number };
+      if (typeof data.views === 'number') current = data.views;
     }
   } catch {
     /* offline / API down — keep the cached value */
