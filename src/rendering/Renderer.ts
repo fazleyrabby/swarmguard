@@ -38,6 +38,8 @@ export class Renderer {
   private container: HTMLElement;
   private baseScale = 1;
   private zoom = 1;
+  /** Portrait phones default to a closer zoom (landscape world would be tiny). */
+  private defaultZoom = 1;
   private trauma = 0;
   private shakeOn = true;
   private baseX = 0;
@@ -97,6 +99,14 @@ export class Renderer {
     this.resize();
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.container);
+    // Portrait: start zoomed in so towers are tappable; user can pan/zoom out.
+    const w0 = this.container.clientWidth || window.innerWidth;
+    const h0 = this.container.clientHeight || window.innerHeight;
+    if (h0 > w0 * 1.1) {
+      this.defaultZoom = 1.7;
+      this.zoom = 1.7;
+      this.applyTransform();
+    }
 
     // Drag to pan (mouse + touch), wheel to zoom. Clicks still work:
     // a drag > 6px suppresses the follow-up click via wasDrag().
@@ -226,7 +236,7 @@ export class Renderer {
     const h = this.container.clientHeight || window.innerHeight;
     this.baseScale = Math.min(w / WORLD_W, h / WORLD_H);
     const s = this.effectiveScale();
-    if (this.zoom === 1) {
+    if (this.zoom === this.defaultZoom) {
       this.baseX = w / 2 - (WORLD_W / 2) * s;
       this.baseY = h / 2 - (WORLD_H / 2) * s;
     }

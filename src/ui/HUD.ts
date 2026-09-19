@@ -59,6 +59,7 @@ export class HUD {
   private waveEl = el('hud-wave');
   private pauseBtn = el<HTMLButtonElement>('btn-pause');
   private muteBtn = el<HTMLButtonElement>('btn-mute');
+  private fullscreenBtn = el<HTMLButtonElement>('btn-fullscreen');
   private speedBtns: HTMLButtonElement[] = [];
   private bottombar = el('bottombar');
   private statusText = el('status-text');
@@ -88,6 +89,12 @@ export class HUD {
 
     this.pauseBtn.addEventListener('click', () => callbacks.onPause());
     this.muteBtn.addEventListener('click', () => callbacks.onMuteToggle());
+    this.fullscreenBtn.addEventListener('click', () => void this.toggleFullscreen());
+    document.addEventListener('fullscreenchange', () => {
+      const on = document.fullscreenElement !== null;
+      this.fullscreenBtn.textContent = on ? '🗗' : '⛶';
+      this.fullscreenBtn.title = on ? 'Exit fullscreen' : 'Fullscreen';
+    });
     for (const btn of this.speedBtns) {
       btn.addEventListener('click', () => {
         const speed = Number(btn.dataset.speed) as SpeedSetting;
@@ -341,6 +348,15 @@ export class HUD {
   }
 
   // ---------------------------------------------------------- support modal
+
+  private async toggleFullscreen(): Promise<void> {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch {
+      /* fullscreen unavailable — play on in normal mode */
+    }
+  }
 
   showSupport(): void {
     this.supportBackdrop.classList.remove('hidden');

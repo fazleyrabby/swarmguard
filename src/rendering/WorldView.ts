@@ -217,7 +217,11 @@ export class WorldView {
     g.clear();
     g.circle(0, 0, r).stroke({ width: 9, color: 0x3a2b1f, alpha: 0.85 });
     const color = frac > 0.55 ? 0x4ade80 : frac > 0.25 ? 0xfbbf24 : 0xef4444;
-    if (frac > 0.001) {
+    if (frac <= 0.001) return;
+    if (frac >= 0.999) {
+      // Full circle path (not a 2π arc): avoids an arc-seam artifact at the top.
+      g.circle(0, 0, r).stroke({ width: 9, color, cap: 'round' });
+    } else {
       g.arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2).stroke({
         width: 9,
         color,
@@ -237,6 +241,12 @@ export class WorldView {
   }
 
   private drawGrass(layer: PIXI.Container): void {
+    // Oversized meadow backdrop so letterbox bars show grass, not flat color.
+    const backdrop = new PIXI.Graphics();
+    backdrop.eventMode = 'none';
+    backdrop.rect(-800, -800, WORLD.width + 1600, WORLD.height + 1600).fill({ color: 0x77bd4e });
+    layer.addChild(backdrop);
+
     const g = new PIXI.Graphics();
     g.rect(0, 0, WORLD.width, WORLD.height).fill({ color: 0x8fd45e });
     // Whole-background click target for empty-space dismissal.

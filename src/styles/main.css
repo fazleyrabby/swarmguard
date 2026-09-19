@@ -30,7 +30,7 @@ html,
 body {
   margin: 0;
   padding: 0;
-  min-height: 100%;
+  height: 100%;
   background:
     radial-gradient(1200px 600px at 20% -10%, #2c3a6e 0%, transparent 60%),
     radial-gradient(900px 500px at 90% 10%, #3f2a6e 0%, transparent 55%),
@@ -42,11 +42,11 @@ body {
 #app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  max-width: 1280px;
+  height: 100vh;
+  height: 100dvh;
   margin: 0 auto;
-  padding: 14px;
-  gap: 12px;
+  padding: 10px;
+  gap: 10px;
 }
 
 /* ---- Top HUD bar ---- */
@@ -190,6 +190,10 @@ body {
 /* ---- Stage ---- */
 #stage-wrap {
   position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   border: 3px solid #2b2440;
   border-radius: var(--radius);
   overflow: hidden;
@@ -197,13 +201,12 @@ body {
     radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.25), transparent 40%),
     linear-gradient(180deg, #8fd95f, #5fae3f 60%, #4c9433);
   box-shadow: var(--card-shadow);
-  min-height: 540px;
 }
 
 #game {
+  flex: 1 1 auto;
+  min-height: 300px;
   width: 100%;
-  height: 62vh;
-  min-height: 480px;
 }
 
 #game canvas {
@@ -763,28 +766,72 @@ body {
 /* ---- Responsive ---- */
 @media (max-width: 760px) {
   #app {
-    padding: 10px;
+    padding: 6px;
+    gap: 8px;
   }
 
   #ui {
-    flex-direction: column;
-    align-items: stretch;
+    padding: 8px 10px;
   }
 
-  .hud-right {
-    justify-content: flex-start;
+  .hud-pill {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .btn-small {
+    padding: 6px 10px;
+    font-size: 13px;
   }
 
   #game {
-    height: 58vh;
+    min-height: 240px;
+  }
+
+  #bottombar {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+  }
+
+  #status-text {
+    order: 3;
+    flex-basis: 100%;
+    font-size: 13px;
   }
 
   #panel-slot {
-    left: 14px;
-    right: 14px;
+    left: 10px;
+    right: 10px;
   }
 
   .panel {
     width: auto;
+  }
+
+  .overlay-card {
+    padding: 20px;
+  }
+
+  .support-card {
+    padding: 16px;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  #app {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  #ui {
+    padding: 6px 10px;
+  }
+
+  #game {
+    min-height: 200px;
+  }
+
+  #bottombar {
+    padding: 8px 12px;
   }
 }
