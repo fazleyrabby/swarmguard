@@ -12,6 +12,8 @@ Built with **PixiJS + TypeScript + Vite**. No backend, no accounts, no external 
 - **Three enemy types** — Grunt, Runner, Tank — with distinct HP, speed, damage and bounty.
 - **Boss waves** — every 10th wave sends a Warlord: huge HP, an always-visible health bar, and a screen-shaking death.
 - **10 hand-tuned waves** plus an **endless mode** with scaling HP/speed and a growing Tank share.
+- **Challenge runs** — Standard, Sudden Death, Poverty, Onslaught, Glass Cannon and Endless, selectable from the menu.
+- **10 persistent achievements** with unlock toasts and a viewer on the main menu.
 - **Four targeting modes** — First, Nearest, Strongest, Weakest.
 - **Game feel** — particles, screen shake, floating damage numbers, hit/death FX, generated WebAudio sound effects.
 - **Polish** — responsive full-height layout, fullscreen toggle, portrait zoom, settings, pause/speed controls (1x–3x), game-over and victory screens, highest-wave persistence.

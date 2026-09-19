@@ -22,6 +22,19 @@ export interface MapOption {
   description: string;
 }
 
+export interface ChallengeOption {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface AchievementView {
+  name: string;
+  description: string;
+  icon: string;
+  unlocked: boolean;
+}
+
 export interface HudCallbacks {
   onPlay: () => void;
   onStartWave: () => void;
@@ -32,6 +45,8 @@ export interface HudCallbacks {
   onMuteToggle: () => void;
   onSettingsChange: (settings: GameSettings) => void;
   onSelectMap: (id: string) => void;
+  onSelectChallenge: (id: string) => void;
+  getAchievements: () => AchievementView[];
 }
 
 export interface EndOfGameStats {
@@ -61,6 +76,8 @@ export class HUD {
   private highestWave = 0;
   private maps: MapOption[];
   private selectedMapId: string;
+  private challenges: ChallengeOption[];
+  private selectedChallengeId: string;
 
   private top = el('ui');
   private hp = el('hud-hp');
@@ -96,11 +113,15 @@ export class HUD {
     settings: GameSettings,
     maps: MapOption[] = [],
     selectedMapId = maps[0]?.id ?? '',
+    challenges: ChallengeOption[] = [],
+    selectedChallengeId = challenges[0]?.id ?? '',
   ) {
     this.callbacks = callbacks;
     this.settings = { ...settings };
     this.maps = maps;
     this.selectedMapId = selectedMapId;
+    this.challenges = challenges;
+    this.selectedChallengeId = selectedChallengeId;
     this.speedBtns = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-speed]'));
 
     this.pauseBtn.addEventListener('click', () => callbacks.onPause());
@@ -243,13 +264,24 @@ export class HUD {
       })
       .join('');
     const picker = mapButtons ? `<div class="map-picker">${mapButtons}</div>` : '';
+    const challengeButtons = this.challenges
+      .map((c) => {
+        const active = c.id === this.selectedChallengeId ? ' active' : '';
+        return `<button class="challenge-btn${active}" data-challenge="${c.id}" title="${c.description}">${c.name}</button>`;
+      })
+      .join('');
+    const challenges = challengeButtons
+      ? `<div class="challenge-label">Challenge</div><div class="challenge-picker">${challengeButtons}</div>`
+      : '';
     const card = this.mountCard(
       'menu',
       `<div class="game-title">🏰 SWARMGUARD</div>
        <div class="game-subtitle">Defend the Core</div>
        <div class="menu-best">Highest wave: <strong>${this.highestWave}</strong></div>
        ${picker}
+       ${challenges}
        <button class="btn btn-primary btn-big" data-action="play">▶ PLAY</button>
+       <button class="btn" data-action="achievements">🏆 ACHIEVEMENTS</button>
        <button class="btn" data-action="settings">⚙ SETTINGS</button>
        <div class="menu-hint">Click a glowing pad to build • click a tower to upgrade • Space pauses</div>`,
     );
@@ -262,8 +294,49 @@ export class HUD {
         this.showMenu();
       });
     });
+    card.querySelectorAll<HTMLButtonElement>('[data-challenge]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.challenge;
+        if (!id) return;
+        this.selectedChallengeId = id;
+        this.callbacks.onSelectChallenge(id);
+        this.showMenu();
+      });
+    });
     card.querySelector('[data-action="play"]')?.addEventListener('click', () => this.callbacks.onPlay());
+    card.querySelector('[data-action="achievements"]')?.addEventListener('click', () =>
+      this.showAchievements(this.callbacks.getAchievements()),
+    );
     card.querySelector('[data-action="settings"]')?.addEventListener('click', () => this.showSettings(true));
+  }
+
+  /** Read-only achievements list with a back-to-menu button. */
+  showAchievements(items: AchievementView[]): void {
+    const rows = items
+      .map(
+        (a) => `<div class="achv${a.unlocked ? ' unlocked' : ''}">
+          <span class="achv-icon">${a.unlocked ? a.icon : '🔒'}</span>
+          <span class="achv-body">
+            <span class="achv-name">${a.name}</span>
+            <span class="achv-desc">${a.description}</span>
+          </span>
+        </div>`,
+      )
+      .join('');
+    const got = items.filter((a) => a.unlocked).length;
+    const card = this.mountCard(
+      'achievements',
+      `<h2>🏆 Achievements</h2>
+       <div class="menu-best">Unlocked <strong>${got}</strong> / ${items.length}</div>
+       <div class="achv-list">${rows}</div>
+       <button class="btn btn-primary" data-action="back">↩ BACK</button>`,
+    );
+    card.querySelector('[data-action="back"]')?.addEventListener('click', () => this.showMenu());
+  }
+
+  /** Toast an achievement unlock over the battlefield. */
+  showAchievementToast(icon: string, name: string): void {
+    this.banner(`${icon} Achievement unlocked: ${name}`, 2800);
   }
 
   hideMenu(): void {

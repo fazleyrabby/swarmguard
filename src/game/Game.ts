@@ -9,6 +9,7 @@
  */
 import { TOWERS, type TowerId } from '../config/towers';
 import { DEFAULT_MAP, type MapDefinition } from '../config/maps';
+import { DEFAULT_CHALLENGE, type ChallengeDefinition } from '../config/challenges';
 import { FINAL_MVP_WAVE } from '../config/waves';
 import {
   DEFAULT_TARGETING,
@@ -70,18 +71,26 @@ export class Game {
   readonly rng: Rng;
   bestWave: number;
 
-  constructor(seed = 1337, map: MapDefinition = DEFAULT_MAP) {
-    this.state = createInitialState(seed, map);
+  constructor(
+    seed = 1337,
+    map: MapDefinition = DEFAULT_MAP,
+    challenge: ChallengeDefinition = DEFAULT_CHALLENGE,
+  ) {
+    this.state = createInitialState(seed, map, challenge);
     this.rng = mulberry32(seed);
     this.bestWave = readBestWave();
   }
 
   /**
-   * Start a fresh run on the given map, reusing this instance so all views,
-   * panels and event subscriptions stay wired. Resets to MENU.
+   * Start a fresh run on the given map/challenge, reusing this instance so all
+   * views, panels and event subscriptions stay wired. Resets to MENU.
    */
-  newRun(map: MapDefinition, seed = this.state.seed): void {
-    Object.assign(this.state, createInitialState(seed, map));
+  newRun(
+    map: MapDefinition,
+    challenge: ChallengeDefinition = this.state.challenge,
+    seed = this.state.seed,
+  ): void {
+    Object.assign(this.state, createInitialState(seed, map, challenge));
   }
 
   // ---- lifecycle ----
@@ -102,10 +111,16 @@ export class Game {
       return false;
     }
     const def = generateWave(s.wave + 1);
+    const ch = s.challenge;
+    if (ch.enemyCountMult && ch.enemyCountMult !== 1) {
+      def.totalEnemies = Math.max(1, Math.round(def.totalEnemies * ch.enemyCountMult));
+    }
     s.wave = def.wave;
     s.killsThisWave = 0;
     s.goldThisWave = 0;
     initWaveSpawning(s, def, buildSpawnQueue(def, s.seed));
+    if (ch.enemyHpMult) s.waveHpMult *= ch.enemyHpMult;
+    if (ch.enemySpeedMult) s.waveSpeedMult *= ch.enemySpeedMult;
     s.status = GameStatus.WAVE_ACTIVE;
     this.events.emit('wave:started', def);
     return true;
@@ -168,7 +183,7 @@ export class Game {
       reward,
     });
 
-    if (s.wave >= VICTORY_WAVE) {
+    if (s.wave >= VICTORY_WAVE && s.challenge.id !== 'endless') {
       s.status = GameStatus.VICTORY;
       this.saveBestWave();
       this.events.emit('victory', {

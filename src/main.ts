@@ -14,10 +14,16 @@
 import './styles/main.css';
 import { AudioManager } from './audio/AudioManager';
 import { MAPS, DEFAULT_MAP, getMap, type MapDefinition } from './config/maps';
+import { CHALLENGES, DEFAULT_CHALLENGE, getChallenge } from './config/challenges';
 import { ENEMIES } from './config/enemies';
 import type { WaveDefinition } from './config/waves';
 import { Game, type SpeedSetting } from './game/Game';
 import { GameStatus } from './game/GameState';
+import {
+  ACHIEVEMENTS,
+  AchievementStore,
+  evaluateAchievements,
+} from './game/achievements';
 import { addGold } from './game/systems/EconomySystem';
 import { makeEnemy } from './game/systems/SpawnSystem';
 import { Renderer } from './rendering/Renderer';
@@ -106,8 +112,11 @@ async function boot(): Promise<void> {
   const renderer = await Renderer.create(gameContainer);
   if (!renderer?.app?.renderer) throw new Error('[swarmguard] Renderer.create did not produce app.renderer');
   let selectedMapId = DEFAULT_MAP.id;
-  const game = new Game(1337, getMap(selectedMapId));
+  let selectedChallengeId = DEFAULT_CHALLENGE.id;
+  const game = new Game(1337, getMap(selectedMapId), getChallenge(selectedChallengeId));
   const worldView = new WorldView(renderer, game, getMap(selectedMapId));
+  const achievements = new AchievementStore();
+  let baseDamaged = false;
   const entityView = new EntityView(
     renderer.layers.enemy,
     renderer.layers.tower,
@@ -162,10 +171,20 @@ async function boot(): Promise<void> {
         effects.setDamageNumbersEnabled(settings.damageNumbers);
       },
       onSelectMap: (id: string) => selectMap(id),
+      onSelectChallenge: (id: string) => selectChallenge(id),
+      getAchievements: () =>
+        ACHIEVEMENTS.map((a) => ({
+          name: a.name,
+          description: a.description,
+          icon: a.icon,
+          unlocked: achievements.has(a.id),
+        })),
     },
     settings,
     MAPS.map((m) => ({ id: m.id, name: m.name, description: m.description })),
     selectedMapId,
+    CHALLENGES.map((c) => ({ id: c.id, name: c.name, description: c.description })),
+    selectedChallengeId,
   );
 
   const panels = new Panels(panelSlot, game, audio, {
@@ -256,14 +275,18 @@ async function boot(): Promise<void> {
     if (enemy.type === 'boss') {
       effects.bossDeath(enemy.x, enemy.y, color);
       audio.play('boss-death');
+      unlockAchievement('boss-slayer');
     } else {
       effects.deathPop(enemy.x, enemy.y, color);
       audio.play('enemy-death');
     }
     effects.gold(enemy.x, enemy.y, enemy.reward ?? 0);
+    achievements.addCareerKills(1);
+    refreshAchievements();
   });
 
   game.events.on('base:damaged', () => {
+    baseDamaged = true;
     const b = game.state.map.base;
     effects.baseHit(b.x, b.y);
     audio.play('base-hit');
@@ -282,6 +305,7 @@ async function boot(): Promise<void> {
     hud.showWaveComplete({ ...info, gold: info.goldEarned, totalGold: game.state.gold });
     audio.play('wave-complete');
     panels.close();
+    refreshAchievements();
   });
 
   game.events.on('tower:built', (payload) => {
@@ -290,11 +314,13 @@ async function boot(): Promise<void> {
     worldView.refreshSlots();
     audio.play('tower-place');
     panels.refresh();
+    refreshAchievements();
   });
 
   game.events.on('tower:upgraded', () => {
     audio.play('tower-upgrade');
     panels.refresh();
+    refreshAchievements();
   });
 
   game.events.on('tower:sold', (payload) => {
@@ -334,11 +360,23 @@ async function boot(): Promise<void> {
       },
     );
   };
-  game.events.on('game:over', () => finishRun(false));
-  game.events.on('victory', () => finishRun(true));
+  game.events.on('game:over', () => {
+    refreshAchievements();
+    finishRun(false);
+  });
+  game.events.on('victory', () => {
+    unlockAchievement('guardian');
+    if (!baseDamaged) unlockAchievement('untouchable');
+    if (game.state.challenge.id !== 'standard') unlockAchievement('challenger');
+    refreshAchievements();
+    finishRun(true);
+  });
 
-  function applyMap(map: MapDefinition): void {
-    game.newRun(map);
+  function applyRun(map: MapDefinition, challengeId: string): void {
+    // Record map for the Explorer achievement.
+    achievements.recordMap(map.id);
+    baseDamaged = false;
+    game.newRun(map, getChallenge(challengeId));
     worldView.setMap(map);
     prevHp.clear();
     prevProjectiles.clear();
@@ -352,15 +390,41 @@ async function boot(): Promise<void> {
   function selectMap(id: string): void {
     audio.play('click');
     selectedMapId = getMap(id).id;
-    applyMap(getMap(selectedMapId));
+    applyRun(getMap(selectedMapId), selectedChallengeId);
+    refreshAchievements();
+  }
+
+  /** Menu challenge selection: keep the map, swap the modifiers. */
+  function selectChallenge(id: string): void {
+    audio.play('click');
+    selectedChallengeId = getChallenge(id).id;
+    applyRun(getMap(selectedMapId), selectedChallengeId);
+  }
+
+  function unlockAchievement(id: string): void {
+    if (!achievements.unlock(id)) return;
+    const def = ACHIEVEMENTS.find((a) => a.id === id);
+    if (def) hud.showAchievementToast(def.icon, def.name);
+  }
+
+  function refreshAchievements(): void {
+    const earned = evaluateAchievements(game.state, achievements, {
+      mapCount: MAPS.length,
+      challengeId: game.state.challenge.id,
+      untouched: !baseDamaged,
+    });
+    for (const id of earned) {
+      const def = ACHIEVEMENTS.find((a) => a.id === id);
+      if (def) hud.showAchievementToast(def.icon, def.name);
+    }
   }
 
   function restartRun(): void {
     audio.play('click');
     // Reset state in place: views, panels and subscriptions all hold this
-    // Game instance, so no re-wiring is needed. Keep the current map.
+    // Game instance, so no re-wiring is needed. Keep the current map/challenge.
     hud.clearOverlays();
-    applyMap(game.state.map);
+    applyRun(game.state.map, game.state.challenge.id);
     game.startGame();
     hud.hideMenu();
     hud.showPreparation(1);

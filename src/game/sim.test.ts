@@ -3,6 +3,8 @@ import { generateWave, enemyCountForWave, expandSpawnQueue, isBossWave } from '.
 import { TOWERS, TOWER_IDS } from '../config/towers';
 import { ENEMIES } from '../config/enemies';
 import { MAPS, getMap } from '../config/maps';
+import { getChallenge } from '../config/challenges';
+import { AchievementStore, evaluateAchievements } from './achievements';
 import { createInitialState } from './GameState';
 import { Game } from './Game';
 import { canAfford, spendGold, addGold } from './systems/EconomySystem';
@@ -152,6 +154,60 @@ describe('towers', () => {
     expect(sniper?.targeting).toBe('strongest');
     expect(g.upgradeTower(sniper!.id)).toBe(true);
     expect(g.state.towers.find((t) => t.id === sniper!.id)?.level).toBe(2);
+  });
+});
+
+describe('challenges', () => {
+  it('overrides economy and base HP', () => {
+    const poverty = createInitialState(1, undefined, getChallenge('poverty'));
+    expect(poverty.gold).toBe(50);
+    const sudden = createInitialState(1, undefined, getChallenge('sudden-death'));
+    expect(sudden.baseHp).toBe(1);
+    expect(sudden.baseMaxHp).toBe(1);
+  });
+  it('onslaught scales wave counts', () => {
+    const g = new Game(1, undefined, getChallenge('onslaught'));
+    g.startGame();
+    g.startWave();
+    expect(g.state.waveTotalEnemies).toBeGreaterThan(10);
+  });
+  it('endless keeps the run going past wave 10', () => {
+    const g = new Game(1, undefined, getChallenge('endless'));
+    g.startGame();
+    g.startWave();
+    // Jump the wave counter forward and clear it; endless must not declare victory.
+    g.state.wave = 10;
+    g.state.spawnQueue = [];
+    for (const e of g.state.enemies) e.alive = false;
+    g.update(0.016);
+    expect(g.state.status).not.toBe('VICTORY');
+  });
+});
+
+describe('achievements', () => {
+  it('evaluates run milestones into the store', () => {
+    const store = new AchievementStore();
+    const s = createInitialState();
+    s.totalKills = 1;
+    s.totalGoldEarned = 2500;
+    s.towers = Array.from({ length: 8 }, () => ({ level: 5 })) as never;
+    const earned = evaluateAchievements(s, store, {
+      mapCount: 3,
+      challengeId: 'standard',
+      untouched: true,
+    });
+    expect(earned).toContain('first-blood');
+    expect(earned).toContain('architect');
+    expect(earned).toContain('maxed');
+    expect(earned).toContain('rich');
+    expect(store.has('first-blood')).toBe(true);
+    // Second evaluation must not re-award.
+    const again = evaluateAchievements(s, store, {
+      mapCount: 3,
+      challengeId: 'standard',
+      untouched: true,
+    });
+    expect(again).toHaveLength(0);
   });
 });
 

@@ -85,7 +85,7 @@ export function updateCombat(
       vx: (dx / dist) * speed,
       vy: (dy / dist) * speed,
       targetId: target.id,
-      damage: stats.damage,
+      damage: stats.damage * (state.challenge.towerDamageMult ?? 1),
       speed,
       splashRadius: stats.splashRadius,
       slowFactor: stats.slowFactor,

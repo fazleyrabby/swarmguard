@@ -3,6 +3,7 @@
  * Plain data — systems mutate it, renderer/UI observe it.
  */
 import { DEFAULT_MAP, type MapDefinition } from '../config/maps';
+import { DEFAULT_CHALLENGE, type ChallengeDefinition } from '../config/challenges';
 import type { BuildSlot, Enemy, Projectile, Tower } from './entities';
 import { resetEntityIds } from './entities';
 import type { EnemyType } from '../config/enemies';
@@ -21,6 +22,8 @@ export interface GameState {
   status: GameStatus;
   /** Active map definition (geometry + economy). */
   map: MapDefinition;
+  /** Active challenge modifiers. */
+  challenge: ChallengeDefinition;
   /** Status to restore on resume() after a pause. */
   prevStatus?: GameStatus;
   wave: number;
@@ -64,15 +67,18 @@ export function isGameOver(state: GameState): boolean {
 export function createInitialState(
   seed = 1337,
   map: MapDefinition = DEFAULT_MAP,
+  challenge: ChallengeDefinition = DEFAULT_CHALLENGE,
 ): GameState {
   resetEntityIds();
+  const baseHp = challenge.baseHp ?? map.baseHp;
   return {
     status: GameStatus.MENU,
     map,
+    challenge,
     wave: 0,
-    gold: map.startingGold,
-    baseHp: map.baseHp,
-    baseMaxHp: map.baseHp,
+    gold: challenge.startingGold ?? map.startingGold,
+    baseHp,
+    baseMaxHp: baseHp,
     enemies: [],
     towers: [],
     projectiles: [],
