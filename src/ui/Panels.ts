@@ -33,6 +33,8 @@ export class Panels {
   /** Currently inspected tower (public for canvas picking dedup). */
   openTowerId: string | null = null;
   private keyboardBound = false;
+  /** Signature of the currently rendered panel; rebuild only when this changes. */
+  private renderedKey: string | null = null;
 
   constructor(container: HTMLElement, game: Game, audio: AudioManager, hooks: PanelHooks) {
     this.container = container;
@@ -79,6 +81,7 @@ export class Panels {
     if (!this.isOpen) return;
     this.openSlotId = null;
     this.openTowerId = null;
+    this.renderedKey = null;
     this.hooks.hideRange();
     this.render();
   }
@@ -106,7 +109,32 @@ export class Panels {
         return;
       }
     }
-    this.render();
+    // Rebuilding innerHTML on every kill replaces the buttons mid-click
+    // (and replays the pop-in animation = the "jump"). Rebuild only when
+    // the panel identity/level changed; otherwise just flip affordability.
+    const key = this.panelKey();
+    if (key !== this.renderedKey) {
+      this.render();
+    } else {
+      this.updateAffordability();
+    }
+  }
+
+  /** Identity of the open panel: tower id + level, or slot id. */
+  private panelKey(): string {
+    if (this.openTowerId !== null) {
+      const tower = this.game.state.towers.find((t) => t.id === this.openTowerId);
+      return tower ? `up:${tower.id}:${tower.level}` : 'none';
+    }
+    return `build:${this.openSlotId}`;
+  }
+
+  /** Flip disabled states in place — no DOM replacement, clicks survive. */
+  private updateAffordability(): void {
+    const gold = this.game.state.gold;
+    this.container.querySelectorAll<HTMLButtonElement>('[data-cost]').forEach((btn) => {
+      btn.disabled = gold < Number(btn.dataset.cost);
+    });
   }
 
   // --------------------------------------------------------------- rendering
@@ -119,6 +147,7 @@ export class Panels {
       const tower = this.game.state.towers.find((t) => t.id === this.openTowerId);
       if (tower) this.container.appendChild(this.upgradeEl(tower));
     }
+    this.renderedKey = this.panelKey();
     this.container.classList.toggle('hidden', !this.isOpen);
   }
 
@@ -138,6 +167,7 @@ export class Panels {
       const card = document.createElement('button');
       card.className = 'tower-option';
       card.disabled = !affordable;
+      card.dataset.cost = String(def.cost);
       card.innerHTML =
         `<span class="tower-name">${def.icon} ${def.name}</span>` +
         `<span class="tower-cost">💰 ${def.cost}</span>`;
@@ -214,6 +244,7 @@ export class Panels {
       const up = document.createElement('button');
       up.className = 'btn btn-accent btn-block';
       up.disabled = state.gold < cost;
+      up.dataset.cost = String(cost);
       up.innerHTML = `⬆ Upgrade → <strong>💰 ${cost}</strong><small>DMG ${next.damage} • RNG ${next.range}</small>`;
       up.addEventListener('pointerenter', () => this.hooks.showRange(tower.x, tower.y, next.range));
       up.addEventListener('pointerleave', () => this.hooks.showRange(tower.x, tower.y, stats.range));
