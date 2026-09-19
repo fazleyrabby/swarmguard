@@ -354,19 +354,25 @@ body {
   display: none !important;
 }
 
-/* ---- Wave banner ---- */
+/* ---- Wave banner (top-center toast) ---- */
 .banner {
   position: absolute;
   top: 18px;
   left: 50%;
   transform: translateX(-50%);
+  width: max-content;
+  max-width: min(92%, 640px);
   padding: 10px 22px;
-  border-radius: 999px;
+  border-radius: 16px;
   border: 3px solid #2b2440;
   background: linear-gradient(180deg, #ffffff, #ffe9a8);
   color: var(--ink);
   font-weight: 900;
   font-size: 20px;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
   box-shadow: var(--card-shadow);
   animation: pop 0.35s ease;
 }
@@ -911,7 +917,17 @@ body {
   }
 
   #ui {
+    flex-wrap: wrap;
+    justify-content: center;
     padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .hud-left,
+  .hud-right {
+    flex: 1 1 auto;
+    justify-content: center;
+    gap: 6px;
   }
 
   .hud-pill {
@@ -928,15 +944,34 @@ body {
     min-height: 240px;
   }
 
+  /* Footer stacks in reading order: status → action → credits, so the
+   * primary START WAVE button is never pushed below the credit/support row. */
   #bottombar {
     flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
     padding: 10px 12px;
   }
 
   #status-text {
-    order: 3;
-    flex-basis: 100%;
+    order: 1;
+    flex: 1 1 100%;
+    text-align: center;
     font-size: 13px;
+  }
+
+  #btn-start-wave {
+    order: 2;
+    flex: 1 1 100%;
+    padding: 12px 20px;
+    font-size: 17px;
+  }
+
+  .bottom-left {
+    order: 3;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   #panel-slot {
@@ -949,11 +984,37 @@ body {
   }
 
   .overlay-card {
-    padding: 20px;
+    padding: 18px 16px;
+    gap: 10px;
+    max-width: calc(100% - 24px);
+    max-height: calc(100% - 24px);
+  }
+
+  .game-title {
+    font-size: 30px;
+  }
+
+  .game-subtitle {
+    font-size: 14px;
+  }
+
+  .banner-title {
+    font-size: 22px;
+  }
+
+  .map-picker {
+    max-height: 32vh;
+    overflow-y: auto;
+  }
+
+  .btn-big {
+    font-size: 17px;
+    padding: 12px 24px;
   }
 
   .support-card {
     padding: 16px;
+    max-height: calc(100dvh - 32px);
   }
 }
 
@@ -973,5 +1034,19 @@ body {
 
   #bottombar {
     padding: 8px 12px;
+    gap: 6px;
+  }
+
+  #btn-start-wave {
+    padding: 9px 16px;
+    font-size: 15px;
+  }
+
+  #status-text {
+    font-size: 12px;
+  }
+
+  .bottom-left {
+    gap: 6px;
   }
 }

@@ -41,6 +41,8 @@ export interface HudCallbacks {
   onContinue: () => void;
   onRestart: () => void;
   onPause: () => void;
+  onMenu: () => void;
+  onResume: () => void;
   onSpeed: (speed: SpeedSetting) => void;
   onMuteToggle: () => void;
   onSettingsChange: (settings: GameSettings) => void;
@@ -83,6 +85,7 @@ export class HUD {
   private hp = el('hud-hp');
   private goldEl = el('hud-gold');
   private waveEl = el('hud-wave');
+  private menuBtn = el<HTMLButtonElement>('btn-menu');
   private pauseBtn = el<HTMLButtonElement>('btn-pause');
   private muteBtn = el<HTMLButtonElement>('btn-mute');
   private fullscreenBtn = el<HTMLButtonElement>('btn-fullscreen');
@@ -107,6 +110,8 @@ export class HUD {
   private lastPaused: boolean | null = null;
   private lastMuted: boolean | null = null;
   private lastCard: string | null = null;
+  /** True when the menu was opened mid-run, so it can offer RESUME. */
+  private menuInGame = false;
 
   constructor(
     callbacks: HudCallbacks,
@@ -124,6 +129,7 @@ export class HUD {
     this.selectedChallengeId = selectedChallengeId;
     this.speedBtns = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-speed]'));
 
+    this.menuBtn.addEventListener('click', () => callbacks.onMenu());
     this.pauseBtn.addEventListener('click', () => callbacks.onPause());
     this.muteBtn.addEventListener('click', () => callbacks.onMuteToggle());
     this.fullscreenBtn.addEventListener('click', () => void this.toggleFullscreen());
@@ -252,7 +258,8 @@ export class HUD {
     return card;
   }
 
-  showMenu(): void {
+  showMenu(inGame = false): void {
+    this.menuInGame = inGame;
     this.setChromeVisible(false);
     const mapButtons = this.maps
       .map((m) => {
@@ -273,14 +280,17 @@ export class HUD {
     const challenges = challengeButtons
       ? `<div class="challenge-label">Challenge</div><div class="challenge-picker">${challengeButtons}</div>`
       : '';
+    const primary = inGame
+      ? `<button class="btn btn-primary btn-big" data-action="resume">▶ RESUME</button>`
+      : `<button class="btn btn-primary btn-big" data-action="play">▶ PLAY</button>`;
     const card = this.mountCard(
       'menu',
       `<div class="game-title">🏰 SWARMGUARD</div>
-       <div class="game-subtitle">Defend the Core</div>
+       <div class="game-subtitle">${inGame ? 'Paused — pick a map, challenge or settings' : 'Defend the Core'}</div>
        <div class="menu-best">Highest wave: <strong>${this.highestWave}</strong></div>
        ${picker}
        ${challenges}
-       <button class="btn btn-primary btn-big" data-action="play">▶ PLAY</button>
+       ${primary}
        <button class="btn" data-action="achievements">🏆 ACHIEVEMENTS</button>
        <button class="btn" data-action="settings">⚙ SETTINGS</button>
        <div class="menu-hint">Click a glowing pad to build • click a tower to upgrade • Space pauses</div>`,
@@ -289,21 +299,35 @@ export class HUD {
       btn.addEventListener('click', () => {
         const id = btn.dataset.map;
         if (!id) return;
+        // Re-tapping the active map must not wipe the current run.
+        if (id === this.selectedMapId) {
+          this.showMenu(this.menuInGame);
+          return;
+        }
         this.selectedMapId = id;
         this.callbacks.onSelectMap(id);
-        this.showMenu();
+        this.showMenu(false);
       });
     });
     card.querySelectorAll<HTMLButtonElement>('[data-challenge]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.challenge;
         if (!id) return;
+        if (id === this.selectedChallengeId) {
+          this.showMenu(this.menuInGame);
+          return;
+        }
         this.selectedChallengeId = id;
         this.callbacks.onSelectChallenge(id);
-        this.showMenu();
+        this.showMenu(false);
       });
     });
-    card.querySelector('[data-action="play"]')?.addEventListener('click', () => this.callbacks.onPlay());
+    card
+      .querySelector('[data-action="play"]')
+      ?.addEventListener('click', () => this.callbacks.onPlay());
+    card
+      .querySelector('[data-action="resume"]')
+      ?.addEventListener('click', () => this.callbacks.onResume());
     card.querySelector('[data-action="achievements"]')?.addEventListener('click', () =>
       this.showAchievements(this.callbacks.getAchievements()),
     );
@@ -331,7 +355,9 @@ export class HUD {
        <div class="achv-list">${rows}</div>
        <button class="btn btn-primary" data-action="back">↩ BACK</button>`,
     );
-    card.querySelector('[data-action="back"]')?.addEventListener('click', () => this.showMenu());
+    card
+      .querySelector('[data-action="back"]')
+      ?.addEventListener('click', () => this.showMenu(this.menuInGame));
   }
 
   /** Toast an achievement unlock over the battlefield. */
@@ -378,7 +404,7 @@ export class HUD {
       });
     });
     card.querySelector('[data-action="close"]')?.addEventListener('click', () => {
-      if (fromMenu) this.showMenu();
+      if (fromMenu) this.showMenu(this.menuInGame);
       else this.clearCard();
     });
   }

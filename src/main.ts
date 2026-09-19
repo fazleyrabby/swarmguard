@@ -156,6 +156,25 @@ async function boot(): Promise<void> {
         togglePause();
         audio.play('click');
       },
+      onMenu: () => {
+        const st = game.state.status;
+        // No in-game menu once the run is decided; the end card owns that.
+        if (st === GameStatus.GAME_OVER || st === GameStatus.VICTORY) return;
+        audio.play('click');
+        panels.close();
+        worldView.hideRange();
+        if (st === GameStatus.MENU) {
+          hud.showMenu(false);
+          return;
+        }
+        if (st !== GameStatus.PAUSED) game.pause();
+        hud.showMenu(true);
+      },
+      onResume: () => {
+        audio.play('click');
+        if (game.state.status === GameStatus.PAUSED) game.resume();
+        hud.hideMenu();
+      },
       onSpeed: (speed: SpeedSetting) => game.setSpeed(speed),
       onMuteToggle: () => {
         audio.unlock();
