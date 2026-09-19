@@ -32,6 +32,7 @@ import { EntityView, type RenderEnemy, type RenderProjectile, type RenderTower }
 import { Effects } from './rendering/Effects';
 import { HUD, type GameSettings } from './ui/HUD';
 import { Panels } from './ui/Panels';
+import { initVisitorCounter } from './ui/VisitorCounter';
 
 const SETTINGS_KEY = 'swarmguard:settings';
 
@@ -95,6 +96,7 @@ function toRenderState(game: Game): {
 }
 
 async function boot(): Promise<void> {
+  void initVisitorCounter();
   const gameContainer = requireEl('game');
   const panelSlot = requireEl('panel-slot');
   const debugEl = requireEl('debug-overlay');
