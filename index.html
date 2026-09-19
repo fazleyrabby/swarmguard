@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Swarmguard — Defend the Core</title>
+  </head>
+  <body>
+    <div id="app">
+      <header id="ui">
+        <div class="hud-left">
+          <span class="hud-pill hud-hp" id="hud-hp">❤️ 100/100</span>
+          <span class="hud-pill hud-gold" id="hud-gold">💰 150</span>
+          <span class="hud-pill hud-wave" id="hud-wave">WAVE –</span>
+        </div>
+        <div class="hud-right">
+          <div class="speed-group" role="group" aria-label="Game speed">
+            <button class="btn btn-small speed-btn" data-speed="1" title="Speed ×1 (1)">×1</button>
+            <button class="btn btn-small speed-btn" data-speed="2" title="Speed ×2 (2)">×2</button>
+            <button class="btn btn-small speed-btn" data-speed="3" title="Speed ×3 (3)">×3</button>
+          </div>
+          <button class="btn btn-small" id="btn-pause" title="Pause (Space)">⏸</button>
+          <button class="btn btn-small" id="btn-mute" title="Mute sound">🔊</button>
+        </div>
+      </header>
+
+      <div id="stage-wrap">
+        <div id="game"></div>
+        <div id="overlay-root"></div>
+        <div id="panel-slot" class="hidden"></div>
+      </div>
+
+      <div id="bottombar">
+        <span id="status-text">Loading…</span>
+        <button class="btn btn-primary" id="btn-start-wave">⚔ START WAVE</button>
+      </div>
+      <div id="debug-overlay" class="hidden"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
