@@ -34,6 +34,7 @@ import { updateTargets } from './systems/TargetingSystem';
 import {
   applyUpgrade,
   buildCostFor,
+  isBranchChoice,
   isMaxLevel,
   sellRefundFor,
   upgradeCostFor,
@@ -228,14 +229,18 @@ export class Game {
   }
 
   /** Upgrade a tower one level. False when maxed / broke / missing. */
-  upgradeTower(towerId: string): boolean {
+  upgradeTower(towerId: string, branchId?: string): boolean {
     const s = this.state;
     const tower = s.towers.find((t) => t.id === towerId);
     if (!tower || isMaxLevel(tower.type, tower.level)) return false;
-    const cost = upgradeCostFor(tower.type, tower.level);
+    const nextLevel = tower.level + 1;
+    const mustChooseBranch = isBranchChoice(tower.type, nextLevel) && !tower.branch;
+    if (mustChooseBranch && !branchId) return false;
+    const activeBranch = mustChooseBranch ? branchId : tower.branch;
+    const cost = upgradeCostFor(tower.type, tower.level, activeBranch);
     if (cost === undefined || !canAfford(s, cost)) return false;
     spendGold(s, cost, this.events);
-    applyUpgrade(tower);
+    applyUpgrade(tower, mustChooseBranch ? branchId : undefined);
     this.events.emit('tower:upgraded', tower);
     return true;
   }
@@ -250,7 +255,7 @@ export class Game {
     const idx = s.towers.findIndex((t) => t.id === towerId);
     if (idx === -1) return 0;
     const tower = s.towers[idx];
-    const refund = sellRefundFor(tower.type, tower.level);
+    const refund = sellRefundFor(tower.type, tower.level, tower.branch);
     s.towers.splice(idx, 1);
     const slot = s.buildSlots.find((b) => b.towerId === towerId);
     if (slot) {

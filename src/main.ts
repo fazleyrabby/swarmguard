@@ -82,6 +82,7 @@ function toRenderState(game: Game): {
       y: t.y,
       level: t.level,
       angle: t.angle,
+      branch: t.branch,
     })),
     projectiles: s.projectiles.map((p) => ({
       id: p.id,

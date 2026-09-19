@@ -8,6 +8,7 @@ Built with **PixiJS + TypeScript + Vite**. No backend, no accounts, no external 
 
 - **Five tower types** — Crossbow (fast single-target), Cannon (heavy splash), Bomb Tower (large AoE + slow), Frost Tower (AoE chill), Sniper (extreme range, huge single-target).
 - **5 upgrade levels** per tower, with live stat/cost previews and a sell-for-70% option.
+- **Upgrade branches** — at level 3, Crossbow (Rapid Fire / Arbalest) and Cannon (Mortar / Shrapnel) specialize into distinct playstyles.
 - **Three maps** — Meadow Vale, Serpent Canyon and Frozen Pass, each with its own path layout, build slots and visual theme. Pick one from the main menu.
 - **Three enemy types** — Grunt, Runner, Tank — with distinct HP, speed, damage and bounty.
 - **Boss waves** — every 10th wave sends a Warlord: huge HP, an always-visible health bar, and a screen-shaking death.

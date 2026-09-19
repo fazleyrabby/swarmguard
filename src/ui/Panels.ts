@@ -8,7 +8,7 @@
 import { TOWERS, TOWER_IDS, getTowerLevel, type TowerId } from '../config/towers';
 import { Game, type SpeedSetting } from '../game/Game';
 import type { Tower } from '../game/entities';
-import { isMaxLevel, sellRefundFor, upgradeCostFor } from '../game/systems/UpgradeSystem';
+import { isBranchChoice, isMaxLevel, sellRefundFor, upgradeCostFor } from '../game/systems/UpgradeSystem';
 import type { AudioManager } from '../audio/AudioManager';
 
 export interface PanelHooks {
@@ -72,7 +72,7 @@ export class Panels {
     this.openTowerId = towerId;
     this.openSlotId = null;
     this.audio.play('click');
-    const stats = getTowerLevel(tower.type, tower.level);
+    const stats = getTowerLevel(tower.type, tower.level, tower.branch);
     this.hooks.showRange(tower.x, tower.y, stats.range);
     this.render();
   }
@@ -210,10 +210,11 @@ export class Panels {
     const wrap = document.createElement('div');
     wrap.className = 'panel';
     const def = TOWERS[tower.type];
-    const stats = getTowerLevel(tower.type, tower.level);
+    const stats = getTowerLevel(tower.type, tower.level, tower.branch);
     const maxed = isMaxLevel(tower.type, tower.level);
-    const cost = upgradeCostFor(tower.type, tower.level);
+    const cost = upgradeCostFor(tower.type, tower.level, tower.branch);
     const attackPerSec = stats.attackSpeed.toFixed(2).replace(/\.?0+$/, '');
+    const branch = tower.branch ? def.branches?.find((b) => b.id === tower.branch) : undefined;
 
     const title = document.createElement('h2');
     title.textContent = `${def.icon} ${def.name}`;
@@ -221,7 +222,7 @@ export class Panels {
 
     const level = document.createElement('div');
     level.className = 'tower-level';
-    level.textContent = `Level ${tower.level}${maxed ? ' — MAX' : ''}`;
+    level.textContent = `Level ${tower.level}${maxed ? ' — MAX' : ''}${branch ? ` • ${branch.name}` : ''}`;
     wrap.appendChild(level);
 
     const statsEl = document.createElement('div');
@@ -239,8 +240,42 @@ export class Panels {
     statsEl.innerHTML = rows;
     wrap.appendChild(statsEl);
 
-    if (!maxed && cost !== undefined) {
-      const next = def.levels[tower.level];
+    const nextLevel = tower.level + 1;
+    const needsBranch = !maxed && isBranchChoice(tower.type, nextLevel) && !tower.branch;
+
+    if (needsBranch && def.branches) {
+      const label = document.createElement('div');
+      label.className = 'branch-label';
+      label.textContent = 'Choose a specialization:';
+      wrap.appendChild(label);
+      for (const br of def.branches) {
+        const tier = br.levels[nextLevel - (def.branchLevel ?? nextLevel)] ?? br.levels[0];
+        const bCost = upgradeCostFor(tower.type, tower.level, br.id) ?? cost ?? 0;
+        const btn = document.createElement('button');
+        btn.className = 'tower-option branch-option';
+        btn.disabled = state.gold < bCost;
+        btn.dataset.cost = String(bCost);
+        btn.style.borderColor = `#${br.color.toString(16).padStart(6, '0')}`;
+        btn.title = br.description;
+        btn.innerHTML =
+          `<span class="tower-name">${br.abbr} · ${br.name}</span>` +
+          `<span class="tower-cost">💰 ${bCost}</span>`;
+        const sub = document.createElement('small');
+        sub.className = 'tower-sub';
+        sub.textContent =
+          `DMG ${tier.damage} • RNG ${tier.range} • ${tier.attackSpeed}/s` +
+          (tier.splashRadius ? ` • AoE ${tier.splashRadius}` : '');
+        btn.appendChild(sub);
+        btn.addEventListener('pointerenter', () => this.hooks.showRange(tower.x, tower.y, tier.range));
+        btn.addEventListener('pointerleave', () => this.hooks.showRange(tower.x, tower.y, stats.range));
+        btn.addEventListener('click', () => {
+          if (!this.game.upgradeTower(tower.id, br.id)) this.audio.play('error');
+          this.refresh();
+        });
+        wrap.appendChild(btn);
+      }
+    } else if (!maxed && cost !== undefined) {
+      const next = getTowerLevel(tower.type, nextLevel, tower.branch);
       const up = document.createElement('button');
       up.className = 'btn btn-accent btn-block';
       up.disabled = state.gold < cost;
@@ -255,7 +290,7 @@ export class Panels {
         } else {
           const t = this.game.state.towers.find((x) => x.id === tower.id);
           if (t) {
-            const s = getTowerLevel(t.type, t.level);
+            const s = getTowerLevel(t.type, t.level, t.branch);
             this.hooks.showRange(t.x, t.y, s.range);
           }
         }
@@ -264,7 +299,7 @@ export class Panels {
       wrap.appendChild(up);
     }
 
-    const refund = sellRefundFor(tower.type, tower.level);
+    const refund = sellRefundFor(tower.type, tower.level, tower.branch);
     const sell = document.createElement('button');
     sell.className = 'btn btn-block';
     sell.innerHTML = `💰 Sell → <strong>+${refund}g</strong><small>70% refund</small>`;

@@ -2,32 +2,53 @@
  * Upgrade system (spec §21, §30–31, §52): data-driven tower levels.
  * Upgrade cost to reach level N is stored on level N (level 1 = 0).
  */
-import { MAX_TOWER_LEVEL, TOWERS, getTowerLevel, type TowerId, type TowerLevelStats } from '../../config/towers';
+import {
+  MAX_TOWER_LEVEL,
+  TOWERS,
+  branchFor,
+  getTowerLevel,
+  isBranchChoice,
+  type TowerId,
+  type TowerLevelStats,
+} from '../../config/towers';
 import type { Tower } from '../entities';
 
-export { MAX_TOWER_LEVEL };
+export { MAX_TOWER_LEVEL, isBranchChoice };
 
-/** Stats for a tower's current level. Pure. */
-export function statsFor(type: TowerId, level: number): TowerLevelStats {
-  return getTowerLevel(type, level);
+/** Stats for a tower's current level + branch. Pure. */
+export function statsFor(type: TowerId, level: number, branchId?: string): TowerLevelStats {
+  return getTowerLevel(type, level, branchId);
 }
 
 /** Cost to upgrade FROM `level` to `level + 1`; undefined when maxed. */
-export function upgradeCostFor(type: TowerId, level: number): number | undefined {
+export function upgradeCostFor(
+  type: TowerId,
+  level: number,
+  branchId?: string,
+): number | undefined {
   const def = TOWERS[type];
-  const nextIndex = level; // levels[0] is level 1, so next = current 1-based level.
-  if (nextIndex >= def.levels.length) return undefined;
-  return def.levels[nextIndex].upgradeCost;
+  const nextLevel = level + 1;
+  const bl = def.branchLevel;
+  if (branchId && bl !== undefined && nextLevel >= bl) {
+    const branch = branchFor(type, branchId);
+    if (branch) {
+      const idx = nextLevel - bl;
+      if (idx >= 0 && idx < branch.levels.length) return branch.levels[idx].upgradeCost;
+    }
+  }
+  if (level >= def.levels.length) return undefined;
+  return def.levels[level].upgradeCost;
 }
 
 export function isMaxLevel(type: TowerId, level: number): boolean {
-  return level >= TOWERS[type].levels.length;
+  return level >= MAX_TOWER_LEVEL;
 }
 
-/** Bump a tower one level; returns false when already maxed. */
-export function applyUpgrade(tower: Tower): boolean {
+/** Bump a tower one level; optionally locks in a branch. False when maxed. */
+export function applyUpgrade(tower: Tower, branchId?: string): boolean {
   if (isMaxLevel(tower.type, tower.level)) return false;
   tower.level++;
+  if (branchId && !tower.branch) tower.branch = branchId;
   return true;
 }
 
@@ -37,16 +58,16 @@ export function buildCostFor(type: TowerId): number {
 }
 
 /** Total gold invested in a tower at `level` (build + all upgrades so far). */
-export function investedFor(type: TowerId, level: number): number {
-  const def = TOWERS[type];
-  let total = def.cost;
-  for (let i = 1; i < level && i < def.levels.length; i++) {
-    total += def.levels[i].upgradeCost;
+export function investedFor(type: TowerId, level: number, branchId?: string): number {
+  let total = TOWERS[type].cost;
+  for (let l = 2; l <= level; l++) {
+    const cost = upgradeCostFor(type, l - 1, branchId);
+    if (cost !== undefined) total += cost;
   }
   return total;
 }
 
 /** Sell refund (70% of invested, rounded down). */
-export function sellRefundFor(type: TowerId, level: number): number {
-  return Math.floor(investedFor(type, level) * 0.7);
+export function sellRefundFor(type: TowerId, level: number, branchId?: string): number {
+  return Math.floor(investedFor(type, level, branchId) * 0.7);
 }

@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { branchFor, type TowerId } from '../config/towers';
 
 /** Structural enemy view — sim `Enemy` objects are assignable as-is. */
 export interface RenderEnemy {
@@ -18,6 +19,7 @@ export interface RenderTower {
   y: number;
   level: number;
   angle?: number;
+  branch?: string;
 }
 
 export interface RenderProjectile {
@@ -52,6 +54,7 @@ interface TowerNode {
   recoil: number;
   level: number;
   kind: string;
+  branch?: string;
 }
 
 interface ProjectileNode {
@@ -332,9 +335,12 @@ export class EntityView {
         const s = Math.min(1, n.root.scale.x + dt * 4);
         n.root.scale.set(s >= 1 ? 1 : s < 0.8 ? s : 1 + (s - 0.8) * 0.5);
       }
-      if (n.level !== t.level) {
+      if (n.level !== t.level || n.branch !== t.branch) {
         n.level = t.level;
-        n.badge.text = t.level > 1 ? `Lv${t.level}` : '';
+        n.branch = t.branch;
+        const branch = t.branch ? branchFor(t.kind as TowerId, t.branch) : undefined;
+        n.badge.text = t.level > 1 ? `Lv${t.level}${branch ? ` ${branch.abbr}` : ''}` : '';
+        n.badge.style.fill = branch ? branch.color : 0xffffff;
         n.base.tint = LEVEL_TINTS[Math.min(4, Math.max(0, t.level - 1))];
         this.drawPips(n);
       }
@@ -386,7 +392,7 @@ export class EntityView {
     pips.eventMode = 'none';
     pips.position.y = 34;
     root.addChild(shadow, base, top, badge, pips);
-    const node: TowerNode = { root, top, base, badge, pips, angle: -Math.PI / 2, recoil: 0, level, kind };
+    const node: TowerNode = { root, top, base, badge, pips, angle: -Math.PI / 2, recoil: 0, level, kind, branch: undefined };
     this.drawPips(node);
     return node;
   }

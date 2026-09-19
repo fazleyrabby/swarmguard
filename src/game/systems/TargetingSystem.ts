@@ -105,7 +105,7 @@ function findEnemy(enemies: Enemy[], id: number): Enemy | undefined {
  */
 export function updateTargets(state: GameState): void {
   for (const tower of state.towers) {
-    const stats = getTowerLevel(tower.type, tower.level);
+    const stats = getTowerLevel(tower.type, tower.level, tower.branch);
     let target: Enemy | undefined;
     if (tower.targetId !== undefined) {
       const current = findEnemy(state.enemies, tower.targetId);

@@ -39,6 +39,8 @@ export interface Tower {
   y: number;
   /** 1-based level into the tower definition's levels array. */
   level: number;
+  /** Chosen specialization id (once level reaches the tower's branchLevel). */
+  branch?: string;
   /** Seconds until the tower can fire again. */
   cooldown: number;
   targeting: TargetingMode;

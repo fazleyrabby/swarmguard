@@ -20,6 +20,19 @@ export interface TowerLevelStats {
   slowDuration?: number;
 }
 
+/** A specialization chosen at `TowerDefinition.branchLevel`. */
+export interface TowerBranch {
+  id: string;
+  name: string;
+  /** Short tag shown on the tower badge (2 chars). */
+  abbr: string;
+  description: string;
+  /** Badge accent color. */
+  color: number;
+  /** Stats for levels [branchLevel .. MAX]; `upgradeCost` is the cost to reach that level. */
+  levels: TowerLevelStats[];
+}
+
 export interface TowerDefinition {
   id: TowerId;
   name: string;
@@ -29,6 +42,9 @@ export interface TowerDefinition {
   projectile: 'arrow' | 'cannonball' | 'bomb' | 'frostshard' | 'bullet';
   description: string;
   levels: TowerLevelStats[];
+  /** Level at which the player must pick one of `branches` to continue. */
+  branchLevel?: number;
+  branches?: TowerBranch[];
 }
 
 function attackInterval(attackSpeed: number): number {
@@ -50,6 +66,33 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
       { damage: 100, range: 230, attackSpeed: 1.4, upgradeCost: 250 },
       { damage: 150, range: 250, attackSpeed: 1.6, upgradeCost: 400 },
     ],
+    branchLevel: 3,
+    branches: [
+      {
+        id: 'rapidfire',
+        name: 'Rapid Fire',
+        abbr: 'RF',
+        description: 'Blistering attack speed. Shreds runners and grunts.',
+        color: 0xffc93c,
+        levels: [
+          { damage: 55, range: 200, attackSpeed: 2.0, upgradeCost: 175 },
+          { damage: 85, range: 210, attackSpeed: 2.6, upgradeCost: 260 },
+          { damage: 120, range: 220, attackSpeed: 3.2, upgradeCost: 420 },
+        ],
+      },
+      {
+        id: 'arbalest',
+        name: 'Arbalest',
+        abbr: 'AR',
+        description: 'Heavy bolts: huge single hits at long range, slow to reload.',
+        color: 0xff8fab,
+        levels: [
+          { damage: 140, range: 270, attackSpeed: 0.7, upgradeCost: 175 },
+          { damage: 250, range: 300, attackSpeed: 0.75, upgradeCost: 260 },
+          { damage: 420, range: 330, attackSpeed: 0.8, upgradeCost: 420 },
+        ],
+      },
+    ],
   },
   cannon: {
     id: 'cannon',
@@ -64,6 +107,33 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
       { damage: 220, range: 180, attackSpeed: 0.45, splashRadius: 80, upgradeCost: 250 },
       { damage: 320, range: 195, attackSpeed: 0.48, splashRadius: 90, upgradeCost: 375 },
       { damage: 450, range: 210, attackSpeed: 0.5, splashRadius: 100, upgradeCost: 550 },
+    ],
+    branchLevel: 3,
+    branches: [
+      {
+        id: 'mortar',
+        name: 'Mortar',
+        abbr: 'MO',
+        description: 'Enormous shells and a wider blast. Deletes packed swarms.',
+        color: 0xf97316,
+        levels: [
+          { damage: 220, range: 190, attackSpeed: 0.42, splashRadius: 110, upgradeCost: 250 },
+          { damage: 340, range: 205, attackSpeed: 0.44, splashRadius: 130, upgradeCost: 375 },
+          { damage: 520, range: 220, attackSpeed: 0.46, splashRadius: 150, upgradeCost: 550 },
+        ],
+      },
+      {
+        id: 'shrapnel',
+        name: 'Shrapnel',
+        abbr: 'SH',
+        description: 'Faster, tighter bursts. More hits, less overkill.',
+        color: 0xfbbf24,
+        levels: [
+          { damage: 150, range: 180, attackSpeed: 0.7, splashRadius: 70, upgradeCost: 250 },
+          { damage: 210, range: 190, attackSpeed: 0.8, splashRadius: 80, upgradeCost: 375 },
+          { damage: 300, range: 200, attackSpeed: 0.9, splashRadius: 90, upgradeCost: 550 },
+        ],
+      },
     ],
   },
   bomb: {
@@ -162,14 +232,42 @@ export const CANNON_FALLOFF = [
   { radiusFraction: 1, damageFraction: 0.4 },
 ] as const;
 
-export function getTowerLevel(towerId: TowerId, level: number): TowerLevelStats {
+export const MAX_TOWER_LEVEL = 5;
+
+/** Branch definition for a tower + branch id, if any. */
+export function branchFor(towerId: TowerId, branchId?: string): TowerBranch | undefined {
+  if (!branchId) return undefined;
+  return TOWERS[towerId].branches?.find((b) => b.id === branchId);
+}
+
+/** True when upgrading to `nextLevel` requires choosing a branch on this tower. */
+export function isBranchChoice(towerId: TowerId, nextLevel: number): boolean {
   const def = TOWERS[towerId];
+  return !!def.branches && def.branchLevel !== undefined && nextLevel === def.branchLevel;
+}
+
+/**
+ * Stats for a tower's level, honoring an active branch for levels at/after
+ * `branchLevel`. Pure.
+ */
+export function getTowerLevel(
+  towerId: TowerId,
+  level: number,
+  branchId?: string,
+): TowerLevelStats {
+  const def = TOWERS[towerId];
+  const bl = def.branchLevel;
+  if (branchId && bl !== undefined && level >= bl) {
+    const branch = branchFor(towerId, branchId);
+    if (branch) {
+      const idx = Math.min(Math.max(level - bl, 0), branch.levels.length - 1);
+      return branch.levels[idx];
+    }
+  }
   const clamped = Math.min(Math.max(level, 1), def.levels.length);
   return def.levels[clamped - 1];
 }
 
-export function getAttackIntervalMs(towerId: TowerId, level: number): number {
-  return attackInterval(getTowerLevel(towerId, level).attackSpeed);
+export function getAttackIntervalMs(towerId: TowerId, level: number, branchId?: string): number {
+  return attackInterval(getTowerLevel(towerId, level, branchId).attackSpeed);
 }
-
-export const MAX_TOWER_LEVEL = 5;

@@ -53,7 +53,7 @@ export function updateCombat(
   pool: ProjectilePool,
 ): void {
   for (const tower of state.towers) {
-    const stats = getTowerLevel(tower.type, tower.level);
+    const stats = getTowerLevel(tower.type, tower.level, tower.branch);
     tower.cooldown -= delta;
 
     let target: Enemy | undefined;

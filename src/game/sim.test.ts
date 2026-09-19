@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateWave, enemyCountForWave, expandSpawnQueue, isBossWave } from '../config/waves';
-import { TOWERS, TOWER_IDS } from '../config/towers';
+import { TOWERS, TOWER_IDS, getTowerLevel } from '../config/towers';
 import { ENEMIES } from '../config/enemies';
 import { MAPS, getMap } from '../config/maps';
 import { getChallenge } from '../config/challenges';
@@ -208,6 +208,37 @@ describe('achievements', () => {
       untouched: true,
     });
     expect(again).toHaveLength(0);
+  });
+});
+
+describe('upgrade branches', () => {
+  it('crossbow must pick a branch at level 3 and stats diverge', () => {
+    const g = new Game(5);
+    g.startGame();
+    g.state.gold = 100000;
+    const t = g.buildTower('slot-1', 'crossbow');
+    expect(t).toBeDefined();
+    expect(g.upgradeTower(t!.id)).toBe(true); // 1 -> 2
+    expect(g.upgradeTower(t!.id)).toBe(false); // 2 -> 3 requires a branch
+    expect(g.state.towers[0].level).toBe(2);
+    expect(g.upgradeTower(t!.id, 'rapidfire')).toBe(true);
+    expect(g.state.towers[0].level).toBe(3);
+    expect(g.state.towers[0].branch).toBe('rapidfire');
+    const rapid = getTowerLevel('crossbow', 3, 'rapidfire');
+    const arbalest = getTowerLevel('crossbow', 3, 'arbalest');
+    expect(rapid.attackSpeed).toBeGreaterThan(arbalest.attackSpeed);
+    expect(arbalest.damage).toBeGreaterThan(rapid.damage);
+    // Branch persists for higher levels without re-selecting.
+    expect(g.upgradeTower(t!.id)).toBe(true);
+    expect(getTowerLevel('crossbow', 4, g.state.towers[0].branch).attackSpeed).toBeGreaterThan(2);
+  });
+  it('towers without branches upgrade linearly', () => {
+    const g = new Game(5);
+    g.startGame();
+    g.state.gold = 100000;
+    const t = g.buildTower('slot-1', 'frost');
+    expect(g.upgradeTower(t!.id)).toBe(true);
+    expect(g.state.towers[0].branch).toBeUndefined();
   });
 });
 

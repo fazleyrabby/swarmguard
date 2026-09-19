@@ -307,6 +307,20 @@ body {
   border-color: #ff5d73;
 }
 
+.panel .branch-label {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.panel .tower-option.branch-option {
+  border-width: 3px;
+}
+
 @keyframes denied {
   25% {
     transform: translateX(-5px);

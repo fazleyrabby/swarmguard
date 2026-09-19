@@ -1,6 +1,7 @@
 import { Game } from '../src/game/Game';
 import { GameStatus } from '../src/game/GameState';
 import { TOWERS } from '../src/config/towers';
+import { isBranchChoice, upgradeCostFor } from '../src/game/systems/UpgradeSystem';
 
 function autoSpend(g: Game, midWave = false): void {
   const s = g.state;
@@ -18,14 +19,20 @@ function autoSpend(g: Game, midWave = false): void {
   }
   if (midWave) return;
   for (let i = 0; i < 50; i++) {
-    let best: { id: string; cost: number } | null = null;
+    let best: { id: string; cost: number; branchId?: string } | null = null;
     for (const t of g.state.towers) {
-      const next = TOWERS[t.type].levels[t.level];
-      if (!next || g.state.gold < next.upgradeCost) continue;
-      if (!best || next.upgradeCost < best.cost) best = { id: t.id, cost: next.upgradeCost };
+      const nextLevel = t.level + 1;
+      const branchId = isBranchChoice(t.type, nextLevel)
+        ? t.type === 'cannon'
+          ? 'mortar'
+          : 'rapidfire'
+        : t.branch;
+      const cost = upgradeCostFor(t.type, t.level, branchId);
+      if (cost === undefined || g.state.gold < cost) continue;
+      if (!best || cost < best.cost) best = { id: t.id, cost, branchId };
     }
     if (!best) break;
-    g.upgradeTower(best.id);
+    g.upgradeTower(best.id, best.branchId);
   }
   for (const slot of g.state.buildSlots) {
     if (!slot.occupied && g.state.gold >= TOWERS.cannon.cost) g.buildTower(slot.id, 'cannon');
