@@ -210,41 +210,48 @@ async function boot(): Promise<void> {
   window.addEventListener('blur', () => game.pause());
 
   // ------------------------------------------------------- picking
-  // Build slots are handled by WorldView's own slot plates (mouse + touch
-  // via Pixi pointer events). Towers need a canvas-level picker: it runs
-  // after Pixi's dispatch, and skips when the panel already shows the
-  // tower (avoids a double click sound when a plate sits under a tower).
-  const TOWER_HIT_R = 30;
+  // ONE tap path. The canvas resolves a tap to a single intent, so a tap can
+  // never both open the build menu and select a tower. (Previously the slot
+  // plates handled pointerdown AND this canvas picker handled pointerup, so
+  // the same tap fired twice — the build menu opened, then a nearby tower's
+  // upgrade panel replaced it.)
+  //
+  // Towers sit exactly on their build slot, so a single nearest-slot lookup
+  // covers both "build here" (empty) and "select this tower" (occupied).
+  const SLOT_PICK_R = 56;
+
   renderer.app.canvas.addEventListener('pointerup', (e: PointerEvent) => {
+    if (e.button !== 0) return;
     if (renderer.wasDrag()) return;
     if (game.state.status === GameStatus.MENU) return;
+
     const rect = renderer.app.canvas.getBoundingClientRect();
     const { x, y } = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-    let bestId: string | null = null;
-    let bestD2 = TOWER_HIT_R * TOWER_HIT_R;
-    for (const t of game.state.towers) {
-      const d2 = (t.x - x) ** 2 + (t.y - y) ** 2;
+
+    let slot = null as (typeof game.state.buildSlots)[number] | null;
+    let bestD2 = SLOT_PICK_R * SLOT_PICK_R;
+    for (const s of game.state.buildSlots) {
+      const d2 = (s.x - x) ** 2 + (s.y - y) ** 2;
       if (d2 <= bestD2) {
         bestD2 = d2;
-        bestId = t.id;
+        slot = s;
       }
     }
-    if (bestId && panels.openTowerId !== bestId) {
-      panels.openUpgrade(bestId);
-    }
-  });
 
-  worldView.onSlotClick = (slotId: string) => {
-    if (renderer.wasDrag()) return;
-    const slot = game.state.buildSlots.find((s) => s.id === slotId);
-    if (!slot) return;
-    if (slot.occupied && slot.towerId) panels.openUpgrade(slot.towerId);
-    else if (!slot.occupied) panels.openBuild(slotId);
-  };
-  worldView.onEmptyClick = () => {
-    if (renderer.wasDrag()) return;
-    panels.close();
-  };
+    // Defer the panel change one tick: the tap's synthetic `click` is
+    // dispatched right after pointerup, so if a panel button appeared
+    // synchronously under the finger it would activate immediately
+    // (the "auto upgrade" / "random build" misclick).
+    window.setTimeout(() => {
+      if (!slot) {
+        panels.close();
+      } else if (slot.occupied && slot.towerId) {
+        panels.openUpgrade(slot.towerId);
+      } else if (!slot.occupied) {
+        panels.openBuild(slot.id);
+      }
+    }, 0);
+  });
 
   // ------------------------------------------------------- game events
   game.events.on('tower:fired', (payload) => {

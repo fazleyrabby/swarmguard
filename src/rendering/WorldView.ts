@@ -48,14 +48,14 @@ interface SlotNode {
  *
  * Static art is drawn ONCE. `sync()` (called from the ticker in main.ts)
  * pulses the core glow, shimmers water, redraws the HP ring only when HP
- * changes, and refreshes the range preview. Slot plates are Pixi-interactive
- * (mouse + touch via pointer events, spec §67) and report through
- * `onSlotClick`; background clicks report through `onEmptyClick`.
+ * changes, and refreshes the range preview.
+ *
+ * Tap/click handling lives in ONE place — the canvas-level resolver in
+ * main.ts. Slot plates are hover-only here: two competing pickers (this
+ * view's pointerdown + the canvas pointerup) were racing on the same tap,
+ * so a tap meant to open the build menu could also select a nearby tower.
  */
 export class WorldView {
-  onSlotClick: ((slotId: string) => void) | null = null;
-  onEmptyClick: (() => void) | null = null;
-
   private renderer: Renderer;
   private game: Game;
   private def: MapDefinition;
@@ -243,10 +243,7 @@ export class WorldView {
 
     const g = new PIXI.Graphics();
     g.rect(0, 0, W, H).fill({ color: th.ground });
-    // Whole-background click target for empty-space dismissal.
-    g.eventMode = 'static';
-    g.hitArea = new PIXI.Rectangle(0, 0, W, H);
-    g.on('pointerdown', () => this.onEmptyClick?.());
+    g.eventMode = 'none';
     layer.addChild(g);
 
     const rand = mulberry32(1337);
@@ -644,10 +641,6 @@ export class WorldView {
       label.anchor.set(0.5);
       label.eventMode = 'none';
       root.addChild(plate, label);
-      root.on('pointerdown', (e) => {
-        e.stopPropagation();
-        this.onSlotClick?.(s.id);
-      });
       root.on('pointerover', () => {
         const node = this.slots.get(s.id);
         if (node && !node.hovered) {

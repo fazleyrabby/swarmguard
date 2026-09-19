@@ -30,7 +30,7 @@ export class Panels {
   private audio: AudioManager;
   private hooks: PanelHooks;
   private openSlotId: string | null = null;
-  /** Currently inspected tower (public for canvas picking dedup). */
+  /** Currently inspected tower. */
   openTowerId: string | null = null;
   private keyboardBound = false;
   /** Signature of the currently rendered panel; rebuild only when this changes. */
@@ -58,6 +58,7 @@ export class Panels {
   openBuild(slotId: string): void {
     const slot = this.game.state.buildSlots.find((s) => s.id === slotId);
     if (!slot || slot.occupied) return;
+    if (this.openSlotId === slotId) return;
     this.openSlotId = slotId;
     this.openTowerId = null;
     this.audio.play('click');
@@ -69,6 +70,7 @@ export class Panels {
   openUpgrade(towerId: string): void {
     const tower = this.game.state.towers.find((t) => t.id === towerId);
     if (!tower) return;
+    if (this.openTowerId === towerId) return;
     this.openTowerId = towerId;
     this.openSlotId = null;
     this.audio.play('click');
