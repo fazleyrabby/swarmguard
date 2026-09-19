@@ -31,6 +31,8 @@ export function makeEnemy(
 ): Enemy {
   const def = ENEMIES[type];
   const hp = Math.max(1, Math.round(def.hp * hpMult));
+  const shield =
+    def.shield !== undefined ? Math.max(1, Math.round(def.shield * hpMult)) : undefined;
   return {
     id: nextEnemyId(),
     type,
@@ -44,8 +46,8 @@ export function makeEnemy(
     pathIndex: 0,
     distanceTraveled: 0,
     alive: true,
-    shield: def.shield,
-    maxShield: def.shield,
+    shield,
+    maxShield: shield,
     regenPerSec: def.regenPerSec,
     auraRadius: def.auraRadius,
     auraSpeedBonus: def.auraSpeedBonus,

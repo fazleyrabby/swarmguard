@@ -1,6 +1,7 @@
 import { Game } from '../src/game/Game';
 import { GameStatus } from '../src/game/GameState';
 import { TOWERS } from '../src/config/towers';
+import { getChallenge } from '../src/config/challenges';
 import { isBranchChoice, upgradeCostFor } from '../src/game/systems/UpgradeSystem';
 
 function autoSpend(g: Game, midWave = false): void {
@@ -39,13 +40,19 @@ function autoSpend(g: Game, midWave = false): void {
   }
 }
 
-const g = new Game(1337);
+const challengeId = process.argv[2] ?? 'standard';
+const g = new Game(1337, undefined, getChallenge(challengeId));
 g.startGame();
 autoSpend(g);
 let steps = 0;
 const DT = 1 / 30;
+const maxWave = challengeId === 'endless' ? 30 : Infinity;
 const t0 = Date.now();
-while (g.state.status !== GameStatus.VICTORY && g.state.status !== GameStatus.GAME_OVER) {
+while (
+  g.state.status !== GameStatus.VICTORY &&
+  g.state.status !== GameStatus.GAME_OVER &&
+  g.state.wave < maxWave
+) {
   if (g.state.status === GameStatus.PREPARATION || g.state.status === GameStatus.WAVE_COMPLETE) {
     autoSpend(g);
     console.log(`start wave ${g.state.wave + 1} gold=${g.state.gold} towers=${g.state.towers.length} hp=${g.state.baseHp}`);

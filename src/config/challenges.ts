@@ -60,7 +60,7 @@ export const CHALLENGES: ChallengeDefinition[] = [
   {
     id: 'boss-rush',
     name: 'Boss Rush',
-    description: 'Every wave is a single boss. No trash, no mercy.',
+    description: 'Every wave is a squad of bosses with a themed escort. No breathers.',
   },
 ];
 

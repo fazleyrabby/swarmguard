@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateWave, enemyCountForWave, expandSpawnQueue, isBossWave } from '../config/waves';
+import { generateWave, generateBossRushWave, enemyCountForWave, expandSpawnQueue, isBossWave } from '../config/waves';
 import { TOWERS, TOWER_IDS, getTowerLevel } from '../config/towers';
 import { ENEMIES, isBossType } from '../config/enemies';
 import { MAPS, getMap } from '../config/maps';
@@ -107,12 +107,25 @@ describe('boss abilities', () => {
     expect(near.auraMult).toBeCloseTo(1 + (herald.auraSpeedBonus ?? 0), 5);
     expect(far.auraMult).toBe(1);
   });
-  it('boss rush spawns only one boss per wave', () => {
+  it('boss rush is a boss squad plus a themed escort', () => {
     const g = new Game(1, undefined, getChallenge('boss-rush'));
     g.startGame();
     g.startWave();
-    expect(g.state.spawnQueue).toEqual(['boss-shielded']);
-    expect(g.state.waveTotalEnemies).toBe(0);
+    const queue = g.state.spawnQueue;
+    expect(g.state.waveTotalEnemies).toBe(5);
+    expect(queue).toHaveLength(6);
+    expect(queue[queue.length - 1]).toBe('boss-shielded');
+    expect(queue.filter((t) => t === 'boss-shielded')).toHaveLength(1);
+    // Themed escort: Bulwark sends tanks.
+    expect(queue.filter((t) => t === 'tank')).toHaveLength(5);
+  });
+  it('boss rush boss count grows every 2 waves', () => {
+    expect(generateBossRushWave(1).bossCount).toBe(1);
+    expect(generateBossRushWave(3).bossCount).toBe(2);
+    expect(generateBossRushWave(5).bossCount).toBe(3);
+    expect(generateBossRushWave(7).bossCount).toBe(4);
+    expect(generateBossRushWave(9).bossCount).toBe(5);
+    expect(expandSpawnQueue(generateBossRushWave(5), 1).filter((t) => isBossType(t))).toHaveLength(3);
   });
 });
 

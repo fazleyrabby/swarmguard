@@ -23,8 +23,10 @@ export interface WaveDefinition {
   speedMultiplier: number;
   /** Flat gold bonus for completing the wave. */
   completionReward: number;
-  /** Optional single boss that spawns at the end of the wave (every 10th). */
+  /** Optional single boss type that spawns at the end of the wave (every 10th). */
   boss?: EnemyType;
+  /** How many bosses to spawn (default 1). Used by Boss Rush. */
+  bossCount?: number;
 }
 
 export const WAVE_TUNING = {
@@ -173,17 +175,26 @@ export function generateWave(wave: number): WaveDefinition {
 }
 
 /**
- * Boss Rush modifier: a wave made of a single boss (no trash) with a bigger
- * completion reward. Health/speed scaling still comes from `generateWave`.
+ * Boss Rush modifier: each wave is a squad of bosses plus a themed escort.
+ * Boss count grows every 3 waves (1→2→3→4). Health ramps in gently so early
+ * waves are survivable but late waves are a real wall.
  */
 export function generateBossRushWave(wave: number): WaveDefinition {
   const base = generateWave(wave);
+  const boss = bossTypeForWave(wave);
+  const escort: EnemyType =
+    boss === 'boss-shielded' ? 'tank' : boss === 'boss-regen' ? 'runner' : 'grunt';
+  const escortCount = Math.min(3 + wave * 2, 26);
+  const bossCount = 1 + Math.min(4, Math.floor((wave - 1) / 2));
   return {
     ...base,
-    totalEnemies: 0,
-    composition: [],
-    boss: bossTypeForWave(wave),
-    completionReward: base.completionReward + 60,
+    totalEnemies: escortCount,
+    composition: [{ enemyType: escort, percentage: 1 }],
+    boss,
+    bossCount,
+    // Gentle start, steep growth: 0.32 at wave 1 → 1.4 at wave 10.
+    healthMultiplier: 0.2 + wave * 0.12,
+    completionReward: base.completionReward,
   };
 }
 
@@ -216,7 +227,10 @@ export function expandSpawnQueue(def: WaveDefinition, seed = 1): EnemyType[] {
   }
 
   // Boss always spawns last, after the swarm has thinned out.
-  if (def.boss) queue.push(def.boss);
+  if (def.boss) {
+    const count = Math.max(1, Math.floor(def.bossCount ?? 1));
+    for (let i = 0; i < count; i++) queue.push(def.boss);
+  }
   return queue;
 }
 
