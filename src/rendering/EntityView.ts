@@ -64,11 +64,16 @@ function texKey(kind: string, prefix: string, fallback: string): string {
     case 'grunt':
     case 'runner':
     case 'tank':
+    case 'boss':
     case 'crossbow':
     case 'cannon':
     case 'bomb':
+    case 'frost':
+    case 'sniper':
     case 'arrow':
     case 'cannonball':
+    case 'frostshard':
+    case 'bullet':
       return `${prefix}${kind}`;
     default:
       return fallback;
@@ -153,12 +158,18 @@ export class EntityView {
     bake('tower-base-crossbow', this.towerBaseG(0xb0845a, 0x6b4226));
     bake('tower-base-cannon', this.towerBaseG(0x6b7280, 0x374151));
     bake('tower-base-bomb', this.towerBaseG(0x2dd4bf, 0x0f766e));
+    bake('tower-base-frost', this.towerBaseG(0x93c5fd, 0x1e40af));
+    bake('tower-base-sniper', this.towerBaseG(0x6b7280, 0x1f2937));
     bake('top-crossbow', this.crossbowTopG());
     bake('top-cannon', this.cannonTopG());
     bake('top-bomb', this.bombTopG());
+    bake('top-frost', this.frostTopG());
+    bake('top-sniper', this.sniperTopG());
     bake('arrow', this.arrowG());
     bake('cannonball', this.cannonballG());
     bake('bomb', this.bombProjG());
+    bake('frostshard', this.frostshardG());
+    bake('bullet', this.bulletG());
   }
 
   /** Reconcile pools with sim state (called every tick from main.ts). */
@@ -298,7 +309,16 @@ export class EntityView {
     const seen = new Set<string | number>();
     for (const t of list) {
       seen.add(t.id);
-      const kind = t.kind === 'cannon' ? 'cannon' : t.kind === 'bomb' ? 'bomb' : 'crossbow';
+      const kind =
+        t.kind === 'cannon'
+          ? 'cannon'
+          : t.kind === 'bomb'
+            ? 'bomb'
+            : t.kind === 'frost'
+              ? 'frost'
+              : t.kind === 'sniper'
+                ? 'sniper'
+                : 'crossbow';
       let n = this.towers.get(t.id);
       if (!n) {
         n = this.makeTower(kind, t.level);
@@ -601,6 +621,38 @@ export class EntityView {
     return g;
   }
 
+  private frostTopG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    // Crystal shard cluster.
+    g.poly([28, 4, 40, 28, 28, 52, 16, 28]).fill({ color: 0xbfdbfe });
+    g.poly([28, 4, 40, 28, 28, 52, 16, 28]).stroke({ width: 3, color: 0x1e40af });
+    g.poly([28, 10, 34, 28, 28, 44, 22, 28]).fill({ color: 0xffffff, alpha: 0.85 });
+    g.circle(28, 28, 7).fill({ color: 0x60a5fa });
+    g.circle(28, 28, 7).stroke({ width: 2.5, color: 0x1e40af });
+    g.circle(26, 26, 2.5).fill({ color: 0xffffff });
+    // Side shards.
+    g.poly([12, 30, 18, 20, 22, 32]).fill({ color: 0xdbeafe });
+    g.poly([34, 32, 38, 20, 44, 30]).fill({ color: 0xdbeafe });
+    return g;
+  }
+
+  private sniperTopG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    // Long barrel.
+    g.roundRect(16, 25, 38, 6, 3).fill({ color: 0x1f2937 });
+    g.roundRect(16, 25, 38, 6, 3).stroke({ width: 2.5, color: 0x0b0f16 });
+    g.roundRect(50, 25.5, 10, 5, 2).fill({ color: 0x111827 });
+    // Stock.
+    g.roundRect(2, 23, 16, 10, 3).fill({ color: 0x4b5563 });
+    g.roundRect(2, 23, 16, 10, 3).stroke({ width: 2.5, color: 0x1f2937 });
+    // Scope.
+    g.circle(26, 28, 9).fill({ color: 0x374151 });
+    g.circle(26, 28, 9).stroke({ width: 3, color: 0x0b0f16 });
+    g.circle(26, 28, 4).fill({ color: 0x9ca3af });
+    g.circle(26, 28, 2).fill({ color: 0xef4444 });
+    return g;
+  }
+
   private arrowG(): PIXI.Graphics {
     const g = new PIXI.Graphics();
     g.poly([0, 4, 16, 4]).stroke({ width: 5, color: 0x451a03, cap: 'round', alpha: 0.9 });
@@ -631,6 +683,25 @@ export class EntityView {
     g.poly([15, 5, 19, 1]).stroke({ width: 2.5, color: 0x92400e, cap: 'round' });
     g.circle(20, 1, 4).fill({ color: 0xfde047, alpha: 0.45 });
     g.circle(20, 1, 2.5).fill({ color: 0xfde047 });
+    return g;
+  }
+
+  private frostshardG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    g.circle(8, 8, 8).fill({ color: 0xbfdbfe, alpha: 0.45 });
+    g.poly([8, 0, 13, 8, 8, 16, 3, 8]).fill({ color: 0xdbeafe });
+    g.poly([8, 0, 13, 8, 8, 16, 3, 8]).stroke({ width: 1.5, color: 0x3b82f6 });
+    g.circle(8, 8, 2.5).fill({ color: 0xffffff });
+    return g;
+  }
+
+  private bulletG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    // Tracer streak + hot round.
+    g.poly([0, 4, 18, 1, 22, 4, 18, 7]).fill({ color: 0xfde047, alpha: 0.5 });
+    g.circle(20, 4, 4).fill({ color: 0xfbbf24 });
+    g.circle(20, 4, 4).stroke({ width: 1.5, color: 0x92400e });
+    g.circle(21, 3, 1.5).fill({ color: 0xffffff });
     return g;
   }
 }

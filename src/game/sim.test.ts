@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateWave, enemyCountForWave, expandSpawnQueue, isBossWave } from '../config/waves';
-import { TOWERS } from '../config/towers';
+import { TOWERS, TOWER_IDS } from '../config/towers';
 import { ENEMIES } from '../config/enemies';
 import { MAPS, getMap } from '../config/maps';
 import { createInitialState } from './GameState';
@@ -130,6 +130,28 @@ describe('maps', () => {
     expect(s.buildSlots[0].id).toBe(canyon.buildSlots[0].id);
     expect(s.baseHp).toBe(canyon.baseHp);
     expect(s.baseMaxHp).toBe(canyon.baseHp);
+  });
+});
+
+describe('towers', () => {
+  it('exposes five towers, each with five upgrade levels', () => {
+    expect(TOWER_IDS).toHaveLength(5);
+    for (const id of TOWER_IDS) {
+      expect(TOWERS[id].levels).toHaveLength(5);
+    }
+  });
+  it('new towers build with default targeting and can be upgraded', () => {
+    const g = new Game(3);
+    g.startGame();
+    g.state.gold = 10000;
+    const frost = g.buildTower('slot-1', 'frost');
+    const sniper = g.buildTower('slot-2', 'sniper');
+    expect(frost).toBeDefined();
+    expect(sniper).toBeDefined();
+    expect(frost?.targeting).toBe('first');
+    expect(sniper?.targeting).toBe('strongest');
+    expect(g.upgradeTower(sniper!.id)).toBe(true);
+    expect(g.state.towers.find((t) => t.id === sniper!.id)?.level).toBe(2);
   });
 });
 

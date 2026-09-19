@@ -238,6 +238,12 @@ async function boot(): Promise<void> {
     } else if (tower.type === 'cannon') {
       effects.muzzle(tower.x, tower.y, tower.angle, true);
       audio.play('cannon-fire');
+    } else if (tower.type === 'frost') {
+      effects.muzzle(tower.x, tower.y, tower.angle, false);
+      audio.play('frost-fire');
+    } else if (tower.type === 'sniper') {
+      effects.arrowSnap(tower.x, tower.y, tower.angle);
+      audio.play('sniper-fire');
     } else {
       effects.muzzle(tower.x, tower.y, tower.angle, false);
       audio.play('bomb-fire');
@@ -422,6 +428,7 @@ async function boot(): Promise<void> {
     for (const [id, prev] of prevProjectiles) {
       if (!curProjectiles.has(id) && prev.splash > 0) {
         if (prev.kind === 'bomb') effects.bombBlast(prev.x, prev.y, prev.splash);
+        else if (prev.kind === 'frostshard') effects.frostBlast(prev.x, prev.y, prev.splash);
         else effects.cannonBlast(prev.x, prev.y, prev.splash);
         audio.play('explosion');
       }

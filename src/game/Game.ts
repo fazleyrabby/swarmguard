@@ -47,6 +47,8 @@ const TOWER_DEFAULT_TARGETING: Record<TowerId, TargetingMode> = {
   crossbow: 'nearest',
   cannon: 'first',
   bomb: 'first',
+  frost: 'first',
+  sniper: 'strongest',
 };
 export const BEST_WAVE_KEY = 'swarmguard:highestWave';
 export const VICTORY_WAVE = FINAL_MVP_WAVE;

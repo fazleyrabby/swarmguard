@@ -19,6 +19,8 @@ export type SoundName =
   | 'crossbow-fire'
   | 'cannon-fire'
   | 'bomb-fire'
+  | 'frost-fire'
+  | 'sniper-fire'
   | 'explosion'
   | 'enemy-hit'
   | 'enemy-death'
@@ -218,6 +220,15 @@ const SOUNDS: Record<SoundName, (a: Player) => void> = {
   },
   'bomb-fire': (a) => {
     a.tone({ freq: 300, freqEnd: 600, duration: 0.12, volume: 0.2, type: 'sine' });
+  },
+  'frost-fire': (a) => {
+    a.tone({ freq: 1900 + Math.random() * 300, freqEnd: 900, duration: 0.12, volume: 0.12, type: 'sine' });
+    a.tone({ freq: 1300, freqEnd: 700, duration: 0.16, volume: 0.08, type: 'triangle', delay: 0.02 });
+    a.noise(0.1, 0.08, 5000, 0, 'highpass');
+  },
+  'sniper-fire': (a) => {
+    a.noise(0.16, 0.4, 2200, 0, 'highpass');
+    a.tone({ freq: 260, freqEnd: 60, duration: 0.16, volume: 0.32, type: 'square' });
   },
   explosion: (a) => {
     a.noise(0.5, 0.45, 900);

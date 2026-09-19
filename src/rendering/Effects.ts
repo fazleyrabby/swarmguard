@@ -230,6 +230,30 @@ export class Effects {
     this.flash(x, y, radius * 0.7, 0xffffff, 0.12);
   }
 
+  /** Frost impact: icy burst + rings, no shake (a chill, not a blast). */
+  frostBlast(x: number, y: number, radius = 90): void {
+    this.flash(x, y, radius * 0.6, 0xdbeafe, 0.14);
+    this.ring(x, y, 12, radius * 1.2, 0xbfdbfe, 0.45);
+    this.ring(x, y, 6, radius * 0.8, 0x60a5fa, 0.5);
+    const palette = [0xbfdbfe, 0xffffff, 0x60a5fa];
+    for (let i = 0; i < 16; i++) {
+      const p = this.spawn();
+      if (!p) return;
+      const a = Math.random() * Math.PI * 2;
+      const sp = radius * (1.1 + Math.random() * 1.8);
+      this.launch(p, {
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 90,
+        life: 0.4 + Math.random() * 0.4,
+        color: palette[i % palette.length],
+        scale: 0.7,
+        gravity: 480,
+        drag: 2,
+      });
+    }
+  }
+
   /** Tower placement: rising ring + glow + sparkle (spec §41). */
   place(x: number, y: number): void {
     this.ring(x, y, 10, 70, 0x4ade80, 0.5);

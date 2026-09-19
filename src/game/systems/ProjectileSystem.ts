@@ -11,6 +11,8 @@ export const PROJECTILE_SPEEDS: Record<ProjectileKind, number> = {
   arrow: 600,
   cannonball: 420,
   bomb: 380,
+  frostshard: 520,
+  bullet: 950,
 };
 
 /** Base contact radius added to the enemy's own radius. */

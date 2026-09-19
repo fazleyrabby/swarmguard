@@ -3,7 +3,7 @@
  * Data-driven: game systems must read from here, never hard-code.
  */
 
-export type TowerId = 'crossbow' | 'cannon' | 'bomb';
+export type TowerId = 'crossbow' | 'cannon' | 'bomb' | 'frost' | 'sniper';
 
 export interface TowerLevelStats {
   damage: number;
@@ -26,7 +26,7 @@ export interface TowerDefinition {
   icon: string;
   /** Gold to build a level-1 tower. */
   cost: number;
-  projectile: 'arrow' | 'cannonball' | 'bomb';
+  projectile: 'arrow' | 'cannonball' | 'bomb' | 'frostshard' | 'bullet';
   description: string;
   levels: TowerLevelStats[];
 }
@@ -121,9 +121,39 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
       },
     ],
   },
+  frost: {
+    id: 'frost',
+    name: 'Frost Tower',
+    icon: '❄️',
+    cost: 90,
+    projectile: 'frostshard',
+    description: 'Low damage, strong AoE chill. Keeps swarms bunched and slow.',
+    levels: [
+      { damage: 12, range: 150, attackSpeed: 0.8, splashRadius: 70, slowFactor: 0.35, slowDuration: 2.0, upgradeCost: 0 },
+      { damage: 18, range: 160, attackSpeed: 0.85, splashRadius: 80, slowFactor: 0.37, slowDuration: 2.1, upgradeCost: 90 },
+      { damage: 26, range: 170, attackSpeed: 0.9, splashRadius: 90, slowFactor: 0.4, slowDuration: 2.2, upgradeCost: 160 },
+      { damage: 38, range: 185, attackSpeed: 0.95, splashRadius: 100, slowFactor: 0.42, slowDuration: 2.3, upgradeCost: 260 },
+      { damage: 52, range: 200, attackSpeed: 1.0, splashRadius: 115, slowFactor: 0.45, slowDuration: 2.5, upgradeCost: 380 },
+    ],
+  },
+  sniper: {
+    id: 'sniper',
+    name: 'Sniper',
+    icon: '🎯',
+    cost: 150,
+    projectile: 'bullet',
+    description: 'Extreme range, huge single-target damage. Slow fire, best vs tanks & bosses.',
+    levels: [
+      { damage: 220, range: 380, attackSpeed: 0.45, upgradeCost: 0 },
+      { damage: 320, range: 400, attackSpeed: 0.47, upgradeCost: 150 },
+      { damage: 460, range: 430, attackSpeed: 0.5, upgradeCost: 260 },
+      { damage: 650, range: 460, attackSpeed: 0.53, upgradeCost: 400 },
+      { damage: 900, range: 500, attackSpeed: 0.56, upgradeCost: 600 },
+    ],
+  },
 };
 
-export const TOWER_IDS: TowerId[] = ['crossbow', 'cannon', 'bomb'];
+export const TOWER_IDS: TowerId[] = ['crossbow', 'cannon', 'bomb', 'frost', 'sniper'];
 
 /** Cannon AoE falloff (spec §22): center 100%, 50% radius 70%, edge 40%. */
 export const CANNON_FALLOFF = [

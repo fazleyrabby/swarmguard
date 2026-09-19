@@ -48,7 +48,7 @@ export interface Tower {
   angle: number;
 }
 
-export type ProjectileKind = 'arrow' | 'cannonball' | 'bomb';
+export type ProjectileKind = 'arrow' | 'cannonball' | 'bomb' | 'frostshard' | 'bullet';
 
 export interface Projectile {
   id: number;
