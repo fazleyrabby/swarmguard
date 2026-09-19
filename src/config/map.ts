@@ -60,5 +60,5 @@ export const BUILD_SLOTS: BuildSlotConfig[] = [
   { id: 'slot-7', x: 810, y: 740 },
   { id: 'slot-8', x: 1000, y: 560 },
   { id: 'slot-9', x: 1080, y: 740 },
-  { id: 'slot-10', x: 1290, y: 540 },
+  { id: 'slot-10', x: 1160, y: 545 },
 ];

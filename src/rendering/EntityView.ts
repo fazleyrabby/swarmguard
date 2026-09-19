@@ -46,6 +46,7 @@ interface TowerNode {
   top: PIXI.Container;
   base: PIXI.Sprite;
   badge: PIXI.Text;
+  pips: PIXI.Graphics;
   angle: number;
   recoil: number;
   level: number;
@@ -237,7 +238,8 @@ export class EntityView {
     if (!pooled) {
       const shadow = new PIXI.Sprite(this.tex.get('shadow'));
       shadow.anchor.set(0.5);
-      shadow.position.y = type === 'tank' ? 24 : type === 'runner' ? 13 : 16;
+      // Sun from upper-left: shadows fall down-right.
+      shadow.position.set(4, (type === 'tank' ? 24 : type === 'runner' ? 13 : 16) + 3);
       shadow.scale.set(type === 'tank' ? 1.5 : type === 'runner' ? 0.75 : 1);
       shadow.alpha = 0.9;
       root.addChild(shadow, body, flash, hpBar);
@@ -282,6 +284,7 @@ export class EntityView {
         n.level = t.level;
         n.badge.text = t.level > 1 ? `Lv${t.level}` : '';
         n.base.tint = LEVEL_TINTS[Math.min(4, Math.max(0, t.level - 1))];
+        this.drawPips(n);
       }
       // Rotate weapon toward target (spec §40) + recoil decay.
       if (t.angle !== undefined) n.angle = lerpAngle(n.angle, t.angle, dt * 10);
@@ -303,7 +306,8 @@ export class EntityView {
     root.eventMode = 'none';
     const shadow = new PIXI.Sprite(this.tex.get('shadow'));
     shadow.anchor.set(0.5);
-    shadow.position.y = 24;
+    // Sun from upper-left: shadows fall down-right (ref: toon lighting).
+    shadow.position.set(4, 29);
     shadow.scale.set(1.4);
     const base = new PIXI.Sprite(this.tex.get(texKey(kind, 'tower-base-', 'tower-base-crossbow')));
     base.anchor.set(0.5);
@@ -326,8 +330,29 @@ export class EntityView {
     badge.anchor.set(0.5);
     badge.position.y = -38;
     badge.eventMode = 'none';
-    root.addChild(shadow, base, top, badge);
-    return { root, top, base, badge, angle: -Math.PI / 2, recoil: 0, level, kind };
+    const pips = new PIXI.Graphics();
+    pips.eventMode = 'none';
+    pips.position.y = 34;
+    root.addChild(shadow, base, top, badge, pips);
+    const node: TowerNode = { root, top, base, badge, pips, angle: -Math.PI / 2, recoil: 0, level, kind };
+    this.drawPips(node);
+    return node;
+  }
+
+  /** Level pips under the base: filled gold = earned, hollow = remaining. */
+  private drawPips(n: TowerNode): void {
+    const g = n.pips;
+    g.clear();
+    const max = 5;
+    for (let i = 0; i < max; i++) {
+      const x = (i - (max - 1) / 2) * 11;
+      if (i < n.level) {
+        g.circle(x, 0, 4).fill({ color: 0xffc93c });
+        g.circle(x, 0, 4).stroke({ width: 1.5, color: 0x7a5b00 });
+      } else {
+        g.circle(x, 0, 3.2).fill({ color: 0x2b2440, alpha: 0.35 });
+      }
+    }
   }
 
   // ---------- projectiles (pooled sprites) ----------
@@ -390,6 +415,9 @@ export class EntityView {
     g.circle(32, 23, 3).fill({ color: 0x1f2937 });
     g.circle(19, 22, 1.2).fill({ color: 0xffffff });
     g.circle(33, 22, 1.2).fill({ color: 0xffffff });
+    // Angry brows: character at a glance.
+    g.poly([10, 13, 22, 16]).stroke({ width: 3, color: 0x1f7a3d, cap: 'round' });
+    g.poly([28, 16, 40, 13]).stroke({ width: 3, color: 0x1f7a3d, cap: 'round' });
     return g;
   }
 
@@ -408,6 +436,9 @@ export class EntityView {
     g.circle(16, 20, 2.6).fill({ color: 0x1f2937 });
     g.circle(27, 20, 2.6).fill({ color: 0x1f2937 });
     g.rect(7, 10, 28, 5).fill({ color: 0xef4444 });
+    // Motion ticks: sells the speed.
+    g.poly([2, 16, 8, 16]).stroke({ width: 2.5, color: 0xfdba74, cap: 'round' });
+    g.poly([0, 24, 7, 24]).stroke({ width: 2.5, color: 0xfdba74, cap: 'round' });
     return g;
   }
 
@@ -432,6 +463,8 @@ export class EntityView {
     g.circle(41, 29, 3.2).fill({ color: 0xdc2626 });
     g.poly([15, 20, 29, 23]).stroke({ width: 3.5, color: 0x5b21b6, cap: 'round' });
     g.poly([35, 23, 49, 20]).stroke({ width: 3.5, color: 0x5b21b6, cap: 'round' });
+    // Battle crack across the armor.
+    g.poly([44, 34, 38, 40, 42, 46]).stroke({ width: 2, color: 0x4c1d95, cap: 'round' });
     return g;
   }
 
@@ -443,9 +476,17 @@ export class EntityView {
 
   private towerBaseG(fill: number, edge: number): PIXI.Graphics {
     const g = new PIXI.Graphics();
+    // Stone plinth ring under the wooden/metal base (diorama miniature feel).
+    g.circle(28, 32, 27).fill({ color: 0xd9cfb8 });
+    g.circle(28, 32, 27).stroke({ width: 4, color: 0x8a7f63 });
     g.circle(28, 30, 24).fill({ color: fill });
     g.circle(28, 30, 24).stroke({ width: 5, color: edge });
     g.circle(28, 30, 15).fill({ color: 0xffffff, alpha: 0.22 });
+    // Metal bolts around the rim.
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      g.circle(28 + Math.cos(a) * 20, 30 + Math.sin(a) * 20, 2.4).fill({ color: edge });
+    }
     for (const [bx, by] of [[12, 16], [44, 16], [12, 44], [44, 44]] as const) {
       g.circle(bx, by, 3.2).fill({ color: edge });
     }
@@ -493,25 +534,33 @@ export class EntityView {
 
   private arrowG(): PIXI.Graphics {
     const g = new PIXI.Graphics();
+    g.poly([0, 4, 16, 4]).stroke({ width: 5, color: 0x451a03, cap: 'round', alpha: 0.9 });
     g.poly([0, 4, 16, 4]).stroke({ width: 3, color: 0x92400e, cap: 'round' });
     g.poly([16, 0, 24, 4, 16, 8]).fill({ color: 0x9ca3af });
+    g.poly([16, 0, 24, 4, 16, 8]).stroke({ width: 1.5, color: 0x4b5563 });
+    g.poly([18, 2.5, 21, 4, 18, 5.5]).fill({ color: 0xf8fafc });
     g.poly([0, 2, 5, 4, 0, 6]).fill({ color: 0xef4444 });
     return g;
   }
 
   private cannonballG(): PIXI.Graphics {
     const g = new PIXI.Graphics();
+    g.circle(10, 8, 8).fill({ color: 0xf97316, alpha: 0.35 });
     g.circle(8, 8, 7).fill({ color: 0x1f2937 });
+    g.circle(8, 8, 7).stroke({ width: 2, color: 0x0b0f16 });
     g.circle(6, 6, 2.5).fill({ color: 0x9ca3af });
+    g.circle(5.2, 5.2, 1).fill({ color: 0xffffff });
     return g;
   }
 
   private bombProjG(): PIXI.Graphics {
     const g = new PIXI.Graphics();
+    g.circle(10, 11, 12).fill({ color: 0xfbbf24, alpha: 0.3 });
     g.circle(10, 11, 9).fill({ color: 0x134e4a });
     g.circle(10, 11, 9).stroke({ width: 2.5, color: 0x042f2e });
     g.circle(7, 8, 3).fill({ color: 0x5eead4 });
     g.poly([15, 5, 19, 1]).stroke({ width: 2.5, color: 0x92400e, cap: 'round' });
+    g.circle(20, 1, 4).fill({ color: 0xfde047, alpha: 0.45 });
     g.circle(20, 1, 2.5).fill({ color: 0xfde047 });
     return g;
   }

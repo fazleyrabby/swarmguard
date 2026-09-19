@@ -66,6 +66,11 @@ export class HUD {
   private overlayRoot = el('overlay-root');
   private bannerEl: HTMLElement | null = null;
   private bannerTimer = 0;
+  private supportBackdrop = el('support-backdrop');
+  private supportOpenBtn = el<HTMLButtonElement>('btn-open-support');
+  private supportCloseBtn = el<HTMLButtonElement>('btn-close-support');
+  private payoneerBtn = el<HTMLButtonElement>('btn-copy-payoneer');
+  private payoneerLabel = el('payoneer-copy-label');
 
   // Cache to avoid DOM churn at 60fps.
   private lastHp = '';
@@ -90,6 +95,18 @@ export class HUD {
       });
     }
     this.startWaveBtn.addEventListener('click', () => callbacks.onStartWave());
+
+    this.supportOpenBtn.addEventListener('click', () => this.showSupport());
+    this.supportCloseBtn.addEventListener('click', () => this.hideSupport());
+    this.supportBackdrop.addEventListener('click', (e) => {
+      if (e.target === this.supportBackdrop) this.hideSupport();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !this.supportBackdrop.classList.contains('hidden')) {
+        this.hideSupport();
+      }
+    });
+    this.payoneerBtn.addEventListener('click', () => void this.copyPayoneer());
   }
 
   setHighestWave(n: number): void {
@@ -321,6 +338,29 @@ export class HUD {
   bindEndOfGameActions(onRestart: () => void, onMenu: () => void): void {
     this.overlayRoot.querySelector('[data-action="restart"]')?.addEventListener('click', onRestart);
     this.overlayRoot.querySelector('[data-action="menu"]')?.addEventListener('click', onMenu);
+  }
+
+  // ---------------------------------------------------------- support modal
+
+  showSupport(): void {
+    this.supportBackdrop.classList.remove('hidden');
+  }
+
+  hideSupport(): void {
+    this.supportBackdrop.classList.add('hidden');
+  }
+
+  private async copyPayoneer(): Promise<void> {
+    const id = document.getElementById('payoneer-id-number')?.textContent?.trim() ?? '24076084';
+    try {
+      await navigator.clipboard.writeText(id);
+      this.payoneerLabel.textContent = '✅ Copied!';
+    } catch {
+      this.payoneerLabel.textContent = id;
+    }
+    window.setTimeout(() => {
+      this.payoneerLabel.textContent = '📋 Copy';
+    }, 1800);
   }
 
   banner(text: string, ms = 2200): void {

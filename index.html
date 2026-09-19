@@ -31,10 +31,64 @@
       </div>
 
       <div id="bottombar">
+        <div class="bottom-left">
+          <a
+            href="https://fazleyrabbi.xyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="creator-badge"
+            aria-label="Made by fazleyrabbi"
+          >
+            <span class="creator-badge__icon" aria-hidden="true">⚡</span>
+            <span class="creator-badge__text">
+              <span class="creator-badge__label">made by</span>
+              <span class="creator-badge__name">fazleyrabbi</span>
+            </span>
+          </a>
+          <button type="button" class="btn btn-small support-btn" id="btn-open-support" title="Support the developer">
+            <span aria-hidden="true">☕</span>
+            <span>Support Me</span>
+          </button>
+        </div>
         <span id="status-text">Loading…</span>
         <button class="btn btn-primary" id="btn-start-wave">⚔ START WAVE</button>
       </div>
       <div id="debug-overlay" class="hidden"></div>
+
+      <div id="support-backdrop" class="hidden" role="dialog" aria-modal="true" aria-labelledby="support-title">
+        <div class="support-card">
+          <div class="support-head">
+            <span class="support-icon" aria-hidden="true">☕</span>
+            <div>
+              <h2 id="support-title">Support Swarmguard</h2>
+              <p>Keep indie tower defense alive!</p>
+            </div>
+            <button type="button" class="btn btn-small" id="btn-close-support" aria-label="Close">✕</button>
+          </div>
+          <a href="https://supportkori.com/fazleyrabbi" target="_blank" rel="noopener noreferrer" class="support-tier">
+            <span class="tier-emoji" aria-hidden="true">❤️</span>
+            <span class="tier-info">
+              <strong>SupportKori</strong>
+              <small>🇧🇩 BD users • bKash / Nagad (৳)</small>
+            </span>
+            <span class="tier-go">Support ৳ →</span>
+          </a>
+          <a href="https://buymeacoffee.com/fazleyrabbi" target="_blank" rel="noopener noreferrer" class="support-tier">
+            <span class="tier-emoji" aria-hidden="true">☕</span>
+            <span class="tier-info">
+              <strong>Buy Me a Coffee</strong>
+              <small>Global • card / Apple Pay / Google Pay ($)</small>
+            </span>
+            <span class="tier-go">Support $ →</span>
+          </a>
+          <button type="button" class="payoneer-box" id="btn-copy-payoneer" title="Click to copy Payoneer ID">
+            <span class="payoneer-label">PAYONEER ID • $0 fee direct</span>
+            <span class="payoneer-id"><strong id="payoneer-id-number">24076084</strong> <em id="payoneer-copy-label">📋 Copy</em></span>
+            <small>Payoneer app: Pay → Pay to recipient → <strong>24076084</strong> or <strong>fazley111@gmail.com</strong></small>
+          </button>
+          <p class="support-thanks">Thank you for defending the Core — and the dev! 🏰✨</p>
+        </div>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

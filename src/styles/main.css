@@ -381,6 +381,250 @@ body {
   opacity: 0.45;
 }
 
+/* ---- Bottom-left credit + support (game chunky-cartoon style) ---- */
+.bottom-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.creator-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: linear-gradient(180deg, #fffdf4, #ffeec4);
+  border: 2px solid #2b2440;
+  border-radius: 999px;
+  box-shadow: 0 3px 0 #2b2440;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1.2;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.creator-badge:hover {
+  filter: brightness(1.05);
+}
+
+.creator-badge:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #2b2440;
+}
+
+.creator-badge__icon {
+  font-size: 15px;
+}
+
+.creator-badge__text {
+  display: flex;
+  flex-direction: column;
+}
+
+.creator-badge__label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.creator-badge__name {
+  font-weight: 900;
+}
+
+.support-btn {
+  background: linear-gradient(180deg, #ffb03d, var(--accent-2));
+  color: #2b2440;
+  white-space: nowrap;
+}
+
+/* ---- Support modal ---- */
+#support-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(26, 36, 64, 0.65);
+  backdrop-filter: blur(2px);
+}
+
+#support-backdrop.hidden {
+  display: none;
+}
+
+.support-card {
+  width: min(430px, 100%);
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+  background: var(--panel-bg);
+  color: var(--ink);
+  border: 3px solid #2b2440;
+  border-radius: 22px;
+  box-shadow: var(--card-shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: card-in 0.25s ease;
+}
+
+.support-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.support-head .support-icon {
+  font-size: 34px;
+  background: linear-gradient(180deg, #fffdf4, #ffeec4);
+  border: 2px solid #2b2440;
+  border-radius: 16px;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 0 #2b2440;
+  flex-shrink: 0;
+}
+
+.support-head h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+}
+
+.support-head p {
+  margin: 2px 0 0;
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.support-head .btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.support-tier {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 2px solid #2b2440;
+  border-radius: 16px;
+  box-shadow: 0 3px 0 #2b2440;
+  text-decoration: none;
+  color: var(--ink);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.support-tier:hover {
+  filter: brightness(1.03);
+}
+
+.support-tier:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #2b2440;
+}
+
+.tier-emoji {
+  font-size: 26px;
+}
+
+.tier-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tier-info strong {
+  font-size: 16px;
+}
+
+.tier-info small {
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.tier-go {
+  margin-left: auto;
+  font-weight: 900;
+  font-size: 14px;
+  background: linear-gradient(180deg, var(--good), #27a94f);
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+  padding: 8px 14px;
+  border: 2px solid #2b2440;
+  border-radius: 999px;
+  box-shadow: 0 2px 0 #2b2440;
+  white-space: nowrap;
+}
+
+.payoneer-box {
+  appearance: none;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #efe9ff, #d9ccff);
+  border: 2px dashed #2b2440;
+  border-radius: 16px;
+  color: var(--ink);
+  font-family: inherit;
+}
+
+.payoneer-box:hover {
+  filter: brightness(1.03);
+}
+
+.payoneer-label {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.payoneer-id {
+  font-style: normal;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.payoneer-id em {
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 800;
+  background: #fff;
+  border: 2px solid #2b2440;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.payoneer-box small {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.support-thanks {
+  margin: 0;
+  text-align: center;
+  font-weight: 800;
+  font-size: 14px;
+}
+
 /* ---- Overlay layer (menu / cards / banners over the canvas) ---- */
 #overlay-root {
   position: absolute;
