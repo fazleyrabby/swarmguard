@@ -226,6 +226,10 @@ body {
 
 .panel {
   width: 300px;
+  max-width: 100%;
+  max-height: calc(100dvh - 140px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--panel-bg);
   color: var(--ink);
   border: 3px solid #2b2440;
@@ -1046,6 +1050,31 @@ body {
 }
 
 /* ---- Responsive ---- */
+/* ---- Tablets / small laptops: let the chrome wrap before it overflows ---- */
+@media (max-width: 1024px) {
+  #ui {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .hud-left,
+  .hud-right {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  #bottombar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  #status-text {
+    flex: 1 1 auto;
+    min-width: 160px;
+  }
+}
+
 @media (max-width: 760px) {
   #app {
     padding: 6px;
@@ -1117,13 +1146,16 @@ body {
 
   .panel {
     width: auto;
+    max-height: calc(100dvh - 24px);
   }
 
   .overlay-card {
     padding: 18px 16px;
     gap: 10px;
-    max-width: calc(100% - 24px);
-    max-height: calc(100% - 24px);
+    min-width: 0;
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
+    max-height: calc(100% - 20px);
   }
 
   .game-title {
@@ -1213,5 +1245,17 @@ body {
   .creator-badge {
     padding: 3px 8px;
     font-size: 11px;
+  }
+
+  .overlay-card {
+    min-width: 0;
+    width: calc(100% - 20px);
+    max-width: 640px;
+    max-height: calc(100% - 20px);
+    padding: 16px;
+  }
+
+  .panel {
+    max-height: calc(100dvh - 24px);
   }
 }
