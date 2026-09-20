@@ -230,6 +230,23 @@ async function boot(): Promise<void> {
   });
   window.addEventListener('blur', () => game.pause());
 
+  // Landscape-first on touch: prompt portrait phone users to rotate, and
+  // pause so nobody loses a run mid-rotation. Never auto-resumes.
+  // Desktop is excluded via coarse-pointer check, even in narrow windows.
+  const rotateOverlay = document.getElementById('rotate-overlay');
+  const coarsePointer = window.matchMedia('(pointer: coarse)');
+  function updateOrientation(): void {
+    if (!rotateOverlay) return;
+    const portrait = window.innerHeight > window.innerWidth;
+    const show = window.matchMedia('(pointer: coarse)').matches && portrait;
+    rotateOverlay.classList.toggle('hidden', !show);
+    if (show) game.pause();
+  }
+  coarsePointer.addEventListener?.('change', updateOrientation);
+  window.addEventListener('resize', updateOrientation);
+  window.addEventListener('orientationchange', updateOrientation);
+  updateOrientation();
+
   // ------------------------------------------------------- picking
   // ONE tap path. The canvas resolves a tap to a single intent, so a tap can
   // never both open the build menu and select a tower. (Previously the slot

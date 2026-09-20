@@ -223,7 +223,10 @@ export class HUD {
         status = `Wave ${state.wave} cleared! +${state.goldThisWave} gold.`;
         break;
       case GameStatus.PAUSED:
-        status = 'Paused — press Space to resume.';
+        status =
+          window.matchMedia?.('(pointer: coarse)').matches
+            ? 'Paused — tap ▶ to resume.'
+            : 'Paused — press Space to resume.';
         break;
       case GameStatus.GAME_OVER:
         status = 'The Core has fallen.';
@@ -492,7 +495,17 @@ export class HUD {
   private async toggleFullscreen(): Promise<void> {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
-      else await document.documentElement.requestFullscreen();
+      else {
+        await document.documentElement.requestFullscreen();
+        try {
+          const orient = screen.orientation as ScreenOrientation & {
+            lock?: (orientation: string) => Promise<void>;
+          };
+          await orient.lock?.('landscape');
+        } catch {
+          /* orientation lock only works in fullscreen on Android — ignore */
+        }
+      }
     } catch {
       /* fullscreen unavailable — play on in normal mode */
     }
