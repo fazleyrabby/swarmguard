@@ -108,40 +108,89 @@ export class Renderer {
       this.applyTransform();
     }
 
-    // Drag to pan (mouse + touch), wheel to zoom. Clicks still work:
-    // a drag > 6px suppresses the follow-up click via wasDrag().
-    const canvas = this.app.canvas as HTMLCanvasElement;
-    canvas.style.touchAction = 'none';
-    canvas.style.cursor = 'grab';
-    canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+  // Drag to pan (mouse + touch), wheel or pinch to zoom. Clicks still
+  // work: a drag > 6px suppresses the follow-up click via wasDrag().
+  const canvas = this.app.canvas as HTMLCanvasElement;
+  canvas.style.touchAction = 'none';
+  canvas.style.cursor = 'grab';
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinchDist = 0;
+  let pinchMidX = 0;
+  let pinchMidY = 0;
+  canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+      pinchMidX = (a.x + b.x) / 2;
+      pinchMidY = (a.y + b.y) / 2;
+    } else if (pointers.size === 1) {
       this.dragging = true;
       this.lastPX = e.clientX;
       this.lastPY = e.clientY;
       this.dragMoved = 0;
-      try { canvas.setPointerCapture(e.pointerId); } catch { /* noop */ }
-      canvas.style.cursor = 'grabbing';
-    });
-    canvas.addEventListener('pointermove', (e: PointerEvent) => {
-      if (!this.dragging) return;
-      const dx = e.clientX - this.lastPX;
-      const dy = e.clientY - this.lastPY;
-      this.lastPX = e.clientX;
-      this.lastPY = e.clientY;
-      this.dragMoved += Math.abs(dx) + Math.abs(dy);
-      if (this.dragMoved > 2) {
-        this.baseX += dx;
-        this.baseY += dy;
+    }
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* noop */ }
+    canvas.style.cursor = 'grabbing';
+  });
+  canvas.addEventListener('pointermove', (e: PointerEvent) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const rect = canvas.getBoundingClientRect();
+      const midX = (a.x + b.x) / 2 - rect.left;
+      const midY = (a.y + b.y) / 2 - rect.top;
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinchDist > 0 && dist > 0) {
+        const before = this.screenToWorld(midX, midY);
+        this.setZoom(this.zoom * (dist / pinchDist));
+        const after = this.screenToWorld(midX, midY);
+        const s = this.effectiveScale();
+        this.baseX += (after.x - before.x) * -s;
+        this.baseY += (after.y - before.y) * -s;
         this.clampPan();
+        this.dragMoved +=
+          Math.abs(dist - pinchDist) +
+          Math.abs(midX - rect.left - (pinchMidX - rect.left)) +
+          Math.abs(midY - rect.top - (pinchMidY - rect.top));
       }
-    });
-    const endDrag = () => {
+      pinchDist = dist;
+      pinchMidX = (a.x + b.x) / 2;
+      pinchMidY = (a.y + b.y) / 2;
+      return;
+    }
+    if (!this.dragging) return;
+    const dx = e.clientX - this.lastPX;
+    const dy = e.clientY - this.lastPY;
+    this.lastPX = e.clientX;
+    this.lastPY = e.clientY;
+    this.dragMoved += Math.abs(dx) + Math.abs(dy);
+    if (this.dragMoved > 2) {
+      this.baseX += dx;
+      this.baseY += dy;
+      this.clampPan();
+    }
+  });
+  const endPointer = (e: PointerEvent) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size === 0) {
       if (!this.dragging) return;
       this.dragging = false;
       canvas.style.cursor = 'grab';
       if (this.dragMoved > 6) this.lastDragEnd = performance.now();
-    };
-    canvas.addEventListener('pointerup', endDrag);
-    canvas.addEventListener('pointercancel', endDrag);
+      return;
+    }
+    // Pinch released back to one finger: resume panning without a jump.
+    const [p] = [...pointers.values()];
+    if (p) {
+      this.lastPX = p.x;
+      this.lastPY = p.y;
+    }
+    pinchDist = 0;
+  };
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
 
     // Wheel zoom anchored at the cursor (spec §9).
     canvas.addEventListener(
