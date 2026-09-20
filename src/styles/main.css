@@ -883,6 +883,12 @@ body {
   animation: card-in 0.25s ease;
 }
 
+/* Keep card sections at their natural size; the card scrolls instead of
+ * squashing children (which made the map picker collapse and overlap). */
+.overlay-card > * {
+  flex: 0 0 auto;
+}
+
 @keyframes card-in {
   from {
     transform: translate(-50%, -48%) scale(0.94);
