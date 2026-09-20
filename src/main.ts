@@ -67,6 +67,22 @@ function requireEl<T extends HTMLElement>(id: string): T {
   return node as T;
 }
 
+/**
+ * Reload once when an updated service worker takes control, so a fresh deploy
+ * is picked up automatically instead of users having to clear caches. Skips
+ * the first-ever install (no existing controller) to avoid a needless reload.
+ */
+function setupServiceWorkerAutoReload(): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  const hadController = navigator.serviceWorker.controller !== null;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    window.location.reload();
+  });
+}
+
 /** Adapt sim state to the entity view's structural types (adds kind/angle). */
 function toRenderState(game: Game): {
   enemies: RenderEnemy[];
@@ -98,6 +114,7 @@ function toRenderState(game: Game): {
 }
 
 async function boot(): Promise<void> {
+  setupServiceWorkerAutoReload();
   void initVisitorCounter();
   const gameContainer = requireEl('game');
   const panelSlot = requireEl('panel-slot');
