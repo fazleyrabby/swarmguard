@@ -1052,6 +1052,103 @@ body {
   color: var(--ink-soft);
 }
 
+/* ---- Map star badge ---- */
+.map-stars {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #e6a100;
+}
+
+.map-btn.active .map-stars {
+  color: #c77800;
+}
+
+/* ---- Talents modal ---- */
+.talent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.talent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 2px solid #2b2440;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.talent-row.maxed {
+  background: rgba(255, 201, 60, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 201, 60, 0.5);
+}
+
+.talent-icon {
+  font-size: 22px;
+  width: 28px;
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+.talent-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.talent-name {
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.talent-dots {
+  font-style: normal;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.talent-effect {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.talent-max {
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #9a7414;
+}
+
+/* ---- End-of-run stars + gems ---- */
+.result-stars {
+  font-size: 30px;
+  letter-spacing: 0.12em;
+  color: #e6a100;
+  line-height: 1;
+}
+
+.result-gems {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.result-best {
+  font-style: normal;
+  color: #c77800;
+}
+
+.result-total {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
 .banner-title {
   font-size: 26px;
   font-weight: 900;
@@ -1553,6 +1650,41 @@ body {
 
   .achv-desc {
     font-size: 10.5px;
+  }
+
+  .map-stars {
+    font-size: 10px;
+  }
+
+  .talent-list {
+    gap: 5px;
+  }
+
+  .talent-row {
+    padding: 6px 8px;
+    gap: 8px;
+    border-radius: 10px;
+  }
+
+  .talent-icon {
+    font-size: 18px;
+    width: 22px;
+  }
+
+  .talent-name {
+    font-size: 13px;
+  }
+
+  .talent-effect {
+    font-size: 11px;
+  }
+
+  .result-stars {
+    font-size: 24px;
+  }
+
+  .result-gems {
+    font-size: 13px;
   }
 
   .overlay-card .btn {

@@ -28,6 +28,18 @@ export interface ChallengeOption {
   description: string;
 }
 
+export interface TalentView {
+  id: string;
+  name: string;
+  icon: string;
+  effect: string;
+  level: number;
+  maxLevel: number;
+  /** Cost of the next rank; undefined when maxed. */
+  cost?: number;
+  affordable: boolean;
+}
+
 export interface AchievementView {
   name: string;
   description: string;
@@ -49,6 +61,14 @@ export interface HudCallbacks {
   onSelectMap: (id: string) => void;
   onSelectChallenge: (id: string) => void;
   getAchievements: () => AchievementView[];
+  /** Persistent gems + stars shown in the menu/talents screens. */
+  getGems: () => number;
+  getTotalStars: () => number;
+  /** Best stars earned on a map (0–3), shown on the map buttons. */
+  getMapStars: (id: string) => number;
+  getTalents: () => TalentView[];
+  /** Buy a talent rank; HUD re-renders the talents screen afterwards. */
+  onBuyTalent: (id: string) => void;
 }
 
 export interface EndOfGameStats {
@@ -56,6 +76,14 @@ export interface EndOfGameStats {
   kills: number;
   goldEarned: number;
   highestWave: number;
+  /** Stars earned this run (0–3). */
+  stars: number;
+  maxStars: number;
+  /** Gems awarded for this run. */
+  gemsEarned: number;
+  totalGems: number;
+  /** True when this run beat the previous best star rating. */
+  newBest: boolean;
 }
 
 export interface WaveCompleteStats {
@@ -273,8 +301,11 @@ export class HUD {
     const mapButtons = this.maps
       .map((m) => {
         const active = m.id === this.selectedMapId ? ' active' : '';
+        const earned = this.callbacks.getMapStars(m.id);
+        const stars = '★'.repeat(earned) + '☆'.repeat(Math.max(0, 3 - earned));
         return `<button class="map-btn${active}" data-map="${m.id}">
           <span class="map-name">${m.name}</span>
+          <span class="map-stars" title="${earned}/3 stars">${stars}</span>
           <span class="map-desc">${m.description}</span>
         </button>`;
       })
@@ -296,10 +327,11 @@ export class HUD {
       'menu',
       `<div class="game-title">🏰 SWARMGUARD</div>
        <div class="game-subtitle">${inGame ? 'Paused — pick a map, challenge or settings' : 'Defend the Core'}</div>
-       <div class="menu-best">Highest wave: <strong>${this.highestWave}</strong></div>
+       <div class="menu-best">Highest wave: <strong>${this.highestWave}</strong> &nbsp;💎 <strong>${this.callbacks.getGems()}</strong> &nbsp;★ <strong>${this.callbacks.getTotalStars()}</strong></div>
        ${picker}
        ${challenges}
        ${primary}
+       <button class="btn" data-action="talents">✨ TALENTS</button>
        <button class="btn" data-action="achievements">🏆 ACHIEVEMENTS</button>
        <button class="btn" data-action="settings">⚙ SETTINGS</button>
        <div class="menu-hint">Click a glowing pad to build • click a tower to upgrade • Space pauses</div>`,
@@ -337,10 +369,48 @@ export class HUD {
     card
       .querySelector('[data-action="resume"]')
       ?.addEventListener('click', () => this.callbacks.onResume());
+    card.querySelector('[data-action="talents"]')?.addEventListener('click', () => this.showTalents());
     card.querySelector('[data-action="achievements"]')?.addEventListener('click', () =>
       this.showAchievements(this.callbacks.getAchievements()),
     );
     card.querySelector('[data-action="settings"]')?.addEventListener('click', () => this.showSettings(true));
+  }
+
+  /** Permanent talent upgrades, bought with gems. */
+  showTalents(): void {
+    const items = this.callbacks.getTalents();
+    const rows = items
+      .map((t) => {
+        const maxed = t.level >= t.maxLevel;
+        const dots = '●'.repeat(t.level) + '○'.repeat(Math.max(0, t.maxLevel - t.level));
+        const action = maxed
+          ? '<span class="talent-max">MAX</span>'
+          : `<button class="btn btn-small" data-talent="${t.id}" ${t.affordable ? '' : 'disabled'}>💎 ${t.cost}</button>`;
+        return `<div class="talent-row${maxed ? ' maxed' : ''}">
+          <span class="talent-icon">${t.icon}</span>
+          <span class="talent-body">
+            <span class="talent-name">${t.name} <em class="talent-dots">${dots}</em></span>
+            <span class="talent-effect">${t.effect}</span>
+          </span>
+          ${action}
+        </div>`;
+      })
+      .join('');
+    const card = this.mountCard(
+      'talents',
+      `<h2>✨ Talents</h2>
+       <div class="menu-best">💎 <strong>${this.callbacks.getGems()}</strong> gems &nbsp;•&nbsp; ★ <strong>${this.callbacks.getTotalStars()}</strong> stars</div>
+       <div class="talent-list">${rows}</div>
+       <button class="btn btn-primary" data-action="back">↩ BACK</button>`,
+    );
+    card.querySelectorAll<HTMLButtonElement>('[data-talent]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.talent;
+        if (id) this.callbacks.onBuyTalent(id);
+        this.showTalents();
+      });
+    });
+    card.querySelector('[data-action="back"]')?.addEventListener('click', () => this.showMenu(this.menuInGame));
   }
 
   /** Read-only achievements list with a back-to-menu button. */
@@ -459,11 +529,20 @@ export class HUD {
     );
   }
 
+  /** Star rating + gem payout block shared by the end-of-run cards. */
+  private resultRewardHtml(stats: EndOfGameStats): string {
+    const stars = '★'.repeat(stats.stars) + '☆'.repeat(Math.max(0, stats.maxStars - stats.stars));
+    const best = stats.newBest ? ' <em class="result-best">new best!</em>' : '';
+    return `<div class="result-stars" title="${stats.stars}/${stats.maxStars} stars">${stars}</div>
+      <div class="result-gems">+${stats.gemsEarned} 💎${best} <span class="result-total">(total 💎 ${stats.totalGems})</span></div>`;
+  }
+
   showGameOver(stats: EndOfGameStats): void {
     this.mountCard(
       'game-over',
       `<div class="banner-title danger">💀 GAME OVER</div>
        <div class="game-subtitle">The Core has fallen on Wave ${stats.wave}</div>
+       ${this.resultRewardHtml(stats)}
        <div class="stat-list">
          <div class="stat-row"><span>Waves survived</span><strong>${Math.max(0, stats.wave - 1)}</strong></div>
          <div class="stat-row"><span>Enemies defeated</span><strong>${stats.kills}</strong></div>
@@ -480,6 +559,7 @@ export class HUD {
       'victory',
       `<div class="banner-title gold">🏆 AREA DEFENDED!</div>
        <div class="game-subtitle">You survived all 10 waves</div>
+        ${this.resultRewardHtml(stats)}
         <div class="stat-list">
           <div class="stat-row"><span>Waves survived</span><strong>10</strong></div>
           <div class="stat-row"><span>Enemies defeated</span><strong>${stats.kills}</strong></div>

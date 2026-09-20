@@ -6,6 +6,7 @@
 import { getTowerLevel } from '../../config/towers';
 import type { Enemy, Tower, TargetingMode } from '../entities';
 import type { GameState } from '../GameState';
+import { applyRange } from '../profile';
 
 export type { TargetingMode };
 
@@ -106,17 +107,18 @@ function findEnemy(enemies: Enemy[], id: number): Enemy | undefined {
 export function updateTargets(state: GameState): void {
   for (const tower of state.towers) {
     const stats = getTowerLevel(tower.type, tower.level, tower.branch);
+    const range = applyRange(stats.range, state.mods);
     let target: Enemy | undefined;
     if (tower.targetId !== undefined) {
       const current = findEnemy(state.enemies, tower.targetId);
-      if (current && current.alive && isInRange(tower, current, stats.range)) {
+      if (current && current.alive && isInRange(tower, current, range)) {
         target = current;
       } else {
         tower.targetId = undefined;
       }
     }
     if (!target) {
-      target = acquireTarget(tower, state.enemies, stats.range);
+      target = acquireTarget(tower, state.enemies, range);
       tower.targetId = target?.id;
     }
     if (target) {

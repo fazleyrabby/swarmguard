@@ -16,6 +16,7 @@ import {
 } from '../entities';
 import type { EventBus } from '../EventBus';
 import type { GameState } from '../GameState';
+import { applyDamage, applyRange } from '../profile';
 import { addGold } from './EconomySystem';
 import type { ProjectilePool } from './ProjectileSystem';
 import { PROJECTILE_HIT_RADIUS, PROJECTILE_SPEEDS } from './ProjectileSystem';
@@ -54,6 +55,7 @@ export function updateCombat(
 ): void {
   for (const tower of state.towers) {
     const stats = getTowerLevel(tower.type, tower.level, tower.branch);
+    const range = applyRange(stats.range, state.mods);
     tower.cooldown -= delta;
 
     let target: Enemy | undefined;
@@ -62,7 +64,7 @@ export function updateCombat(
       if (
         current &&
         current.alive &&
-        inRange(tower.x, tower.y, current.x, current.y, stats.range)
+        inRange(tower.x, tower.y, current.x, current.y, range)
       ) {
         target = current;
       } else {
@@ -85,7 +87,7 @@ export function updateCombat(
       vx: (dx / dist) * speed,
       vy: (dy / dist) * speed,
       targetId: target.id,
-      damage: stats.damage * (state.challenge.towerDamageMult ?? 1),
+      damage: applyDamage(stats.damage, state.mods) * (state.challenge.towerDamageMult ?? 1),
       speed,
       splashRadius: stats.splashRadius,
       slowFactor: stats.slowFactor,

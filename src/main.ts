@@ -24,6 +24,14 @@ import {
   AchievementStore,
   evaluateAchievements,
 } from './game/achievements';
+import {
+  MAX_STARS,
+  Profile,
+  TALENTS,
+  computeStars,
+  runGemReward,
+  type TalentId,
+} from './game/profile';
 import { addGold } from './game/systems/EconomySystem';
 import { makeEnemy } from './game/systems/SpawnSystem';
 import { Renderer } from './rendering/Renderer';
@@ -135,7 +143,13 @@ async function boot(): Promise<void> {
   if (!renderer?.app?.renderer) throw new Error('[swarmguard] Renderer.create did not produce app.renderer');
   let selectedMapId = DEFAULT_MAP.id;
   let selectedChallengeId = DEFAULT_CHALLENGE.id;
-  const game = new Game(1337, getMap(selectedMapId), getChallenge(selectedChallengeId));
+  const profile = new Profile();
+  const game = new Game(
+    1337,
+    getMap(selectedMapId),
+    getChallenge(selectedChallengeId),
+    profile.modifiers(),
+  );
   const worldView = new WorldView(renderer, game, getMap(selectedMapId));
   const achievements = new AchievementStore();
   let baseDamaged = false;
@@ -221,6 +235,28 @@ async function boot(): Promise<void> {
           icon: a.icon,
           unlocked: achievements.has(a.id),
         })),
+      getGems: () => profile.gems,
+      getTotalStars: () => profile.totalStars,
+      getMapStars: (id: string) => profile.bestStarsForMap(id),
+      getTalents: () =>
+        TALENTS.map((t) => {
+          const level = profile.level(t.id);
+          const cost = profile.nextCost(t.id);
+          return {
+            id: t.id,
+            name: t.name,
+            icon: t.icon,
+            effect: t.effect,
+            level,
+            maxLevel: t.maxLevel,
+            cost,
+            affordable: cost !== undefined && profile.canBuy(t.id),
+          };
+        }),
+      onBuyTalent: (id: string) => {
+        if (profile.buy(id as TalentId)) audio.play('tower-upgrade');
+        else audio.play('error');
+      },
     },
     settings,
     MAPS.map((m) => ({ id: m.id, name: m.name, description: m.description })),
@@ -442,11 +478,33 @@ async function boot(): Promise<void> {
     panels.close();
     worldView.hideRange();
     worldView.hideBuildConfirm();
+
+    // Meta-progression: rate the run, bank gems, remember the best stars.
+    const endless = s.challenge.id === 'endless';
+    const result = {
+      mapId: s.map.id,
+      challengeId: s.challenge.id,
+      victory,
+      wavesSurvived: s.wave,
+      baseHp: s.baseHp,
+      baseMaxHp: s.baseMaxHp,
+      endless,
+    };
+    const stars = computeStars(result);
+    const gems = runGemReward(result, stars);
+    const prevBest = profile.recordStars(s.map.id, s.challenge.id, stars);
+    profile.addGems(gems);
+
     const stats = {
       wave: s.wave,
       kills: s.totalKills,
       goldEarned: s.totalGoldEarned,
       highestWave: game.bestWave,
+      stars,
+      maxStars: MAX_STARS,
+      gemsEarned: gems,
+      totalGems: profile.gems,
+      newBest: stars > prevBest,
     };
     if (victory) {
       hud.showVictory(stats);
@@ -479,7 +537,8 @@ async function boot(): Promise<void> {
     // Record map for the Explorer achievement.
     achievements.recordMap(map.id);
     baseDamaged = false;
-    game.newRun(map, getChallenge(challengeId));
+    // Seed the run with the player's permanent talent bonuses.
+    game.newRun(map, getChallenge(challengeId), game.state.seed, profile.modifiers());
     worldView.setMap(map);
     prevHp.clear();
     prevProjectiles.clear();

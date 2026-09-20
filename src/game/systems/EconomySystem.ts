@@ -52,7 +52,7 @@ export function grantWaveReward(
   wave: number,
   events?: EventBus,
 ): number {
-  const reward = waveRewardFor(wave);
+  const reward = Math.round(waveRewardFor(wave) * state.mods.waveRewardMult);
   addGold(state, reward, events);
   return reward;
 }

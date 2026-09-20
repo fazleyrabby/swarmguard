@@ -7,6 +7,7 @@ import { DEFAULT_CHALLENGE, type ChallengeDefinition } from '../config/challenge
 import type { BuildSlot, Enemy, Projectile, Tower } from './entities';
 import { resetEntityIds } from './entities';
 import type { EnemyType } from '../config/enemies';
+import { NEUTRAL_MODIFIERS, type RunModifiers } from './profile';
 
 export enum GameStatus {
   MENU = 'MENU',
@@ -24,6 +25,8 @@ export interface GameState {
   map: MapDefinition;
   /** Active challenge modifiers. */
   challenge: ChallengeDefinition;
+  /** Permanent talent bonuses for this run. */
+  mods: RunModifiers;
   /** Status to restore on resume() after a pause. */
   prevStatus?: GameStatus;
   wave: number;
@@ -68,15 +71,17 @@ export function createInitialState(
   seed = 1337,
   map: MapDefinition = DEFAULT_MAP,
   challenge: ChallengeDefinition = DEFAULT_CHALLENGE,
+  mods: RunModifiers = NEUTRAL_MODIFIERS,
 ): GameState {
   resetEntityIds();
-  const baseHp = challenge.baseHp ?? map.baseHp;
+  const baseHp = (challenge.baseHp ?? map.baseHp) + mods.coreHpBonus;
   return {
     status: GameStatus.MENU,
     map,
     challenge,
+    mods,
     wave: 0,
-    gold: challenge.startingGold ?? map.startingGold,
+    gold: (challenge.startingGold ?? map.startingGold) + mods.startGoldBonus,
     baseHp,
     baseMaxHp: baseHp,
     enemies: [],

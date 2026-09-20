@@ -19,6 +19,7 @@ import {
 } from './entities';
 import { EventBus } from './EventBus';
 import { GameStatus, createInitialState, isGameOver, type GameState } from './GameState';
+import { applyCost, NEUTRAL_MODIFIERS, type RunModifiers } from './profile';
 import { mulberry32, type Rng } from './rng';
 import { applyProjectileHit, updateCombat } from './systems/CombatSystem';
 import {
@@ -79,8 +80,9 @@ export class Game {
     seed = 1337,
     map: MapDefinition = DEFAULT_MAP,
     challenge: ChallengeDefinition = DEFAULT_CHALLENGE,
+    mods: RunModifiers = NEUTRAL_MODIFIERS,
   ) {
-    this.state = createInitialState(seed, map, challenge);
+    this.state = createInitialState(seed, map, challenge, mods);
     this.rng = mulberry32(seed);
     this.bestWave = readBestWave();
   }
@@ -93,8 +95,9 @@ export class Game {
     map: MapDefinition,
     challenge: ChallengeDefinition = this.state.challenge,
     seed = this.state.seed,
+    mods: RunModifiers = this.state.mods,
   ): void {
-    Object.assign(this.state, createInitialState(seed, map, challenge));
+    Object.assign(this.state, createInitialState(seed, map, challenge, mods));
   }
 
   // ---- lifecycle ----
@@ -215,8 +218,9 @@ export class Game {
     if (!slot || slot.occupied) return undefined;
     const def = TOWERS[towerType];
     if (!def) return undefined;
-    if (!canAfford(s, def.cost)) return undefined;
-    spendGold(s, def.cost, this.events);
+    const cost = applyCost(def.cost, s.mods);
+    if (!canAfford(s, cost)) return undefined;
+    spendGold(s, cost, this.events);
 
     const tower: Tower = {
       id: nextTowerId(),
@@ -247,8 +251,10 @@ export class Game {
     const mustChooseBranch = isBranchChoice(tower.type, nextLevel) && !tower.branch;
     if (mustChooseBranch && !branchId) return false;
     const activeBranch = mustChooseBranch ? branchId : tower.branch;
-    const cost = upgradeCostFor(tower.type, tower.level, activeBranch);
-    if (cost === undefined || !canAfford(s, cost)) return false;
+    const rawCost = upgradeCostFor(tower.type, tower.level, activeBranch);
+    if (rawCost === undefined) return false;
+    const cost = applyCost(rawCost, s.mods);
+    if (!canAfford(s, cost)) return false;
     spendGold(s, cost, this.events);
     applyUpgrade(tower, mustChooseBranch ? branchId : undefined);
     const maxHp = towerMaxHp(tower.type, tower.level);
@@ -259,7 +265,7 @@ export class Game {
   }
 
   buildCost(type: TowerId): number {
-    return buildCostFor(type);
+    return applyCost(buildCostFor(type), this.state.mods);
   }
 
   /** Repair a damaged tower to full HP. False when full / broke / missing. */

@@ -9,6 +9,7 @@ import { TOWERS, TOWER_IDS, getTowerLevel, type TowerId } from '../config/towers
 import { Game, type SpeedSetting } from '../game/Game';
 import type { Tower } from '../game/entities';
 import { isBranchChoice, isMaxLevel, repairCostFor, sellRefundFor, upgradeCostFor } from '../game/systems/UpgradeSystem';
+import { applyCost, applyDamage, applyRange } from '../game/profile';
 import type { AudioManager } from '../audio/AudioManager';
 
 export interface BuildConfirmInfo {
@@ -79,6 +80,19 @@ export class Panels {
     return this.openSlotId !== null || this.openTowerId !== null;
   }
 
+  /** Apply the run's talent modifiers to displayed values. */
+  private price(cost: number): number {
+    return applyCost(cost, this.game.state.mods);
+  }
+
+  private dmg(damage: number): number {
+    return Math.round(applyDamage(damage, this.game.state.mods));
+  }
+
+  private rng(range: number): number {
+    return Math.round(applyRange(range, this.game.state.mods));
+  }
+
   // ------------------------------------------------------------ build menu
 
   openBuild(slotId: string): void {
@@ -101,7 +115,7 @@ export class Panels {
     this.openSlotId = null;
     this.audio.play('click');
     const stats = getTowerLevel(tower.type, tower.level, tower.branch);
-    this.hooks.showRange(tower.x, tower.y, stats.range);
+    this.hooks.showRange(tower.x, tower.y, this.rng(stats.range));
     this.render();
   }
 
@@ -215,30 +229,31 @@ export class Panels {
     for (const id of BUILD_ORDER) {
       const def = TOWERS[id];
       const level = def.levels[0];
-      const affordable = state.gold >= def.cost;
+      const cost = this.price(def.cost);
+      const affordable = state.gold >= cost;
       const card = document.createElement('button');
       card.className = 'tower-option';
       card.disabled = !affordable;
-      card.dataset.cost = String(def.cost);
+      card.dataset.cost = String(cost);
       card.innerHTML =
         `<span class="tower-name">${def.icon} ${def.name}</span>` +
-        `<span class="tower-cost">💰 ${def.cost}</span>`;
-      card.title = `${def.description} (DMG ${level.damage}, RNG ${level.range})`;
+        `<span class="tower-cost">💰 ${cost}</span>`;
+      card.title = `${def.description} (DMG ${this.dmg(level.damage)}, RNG ${this.rng(level.range)})`;
       // Hovering a card previews that tower's range from the slot.
       card.addEventListener('pointerenter', () => {
-        if (slot) this.hooks.showRange(slot.x, slot.y, level.range);
+        if (slot) this.hooks.showRange(slot.x, slot.y, this.rng(level.range));
       });
       card.addEventListener('pointerleave', () => this.hooks.hideRange());
       card.addEventListener('click', () => {
         // Touch has no hover: show the range on tap before the ✓/✕ confirm.
         if (this.touchUI && slot) {
-          this.hooks.showRange(slot.x, slot.y, level.range);
+          this.hooks.showRange(slot.x, slot.y, this.rng(level.range));
         }
         this.doBuild(slotId, id, card);
       });
       const sub = document.createElement('small');
       sub.className = 'tower-sub';
-      sub.textContent = `DMG ${level.damage} • RNG ${level.range}${level.splashRadius ? ` • AoE ${level.splashRadius}` : ''}`;
+      sub.textContent = `DMG ${this.dmg(level.damage)} • RNG ${this.rng(level.range)}${level.splashRadius ? ` • AoE ${level.splashRadius}` : ''}`;
       card.appendChild(sub);
       wrap.appendChild(card);
     }
@@ -250,7 +265,7 @@ export class Panels {
   /** Touch builds ask for ✓/✕ confirmation; desktop builds place immediately. */
   private doBuild(slotId: string, id: TowerId, card: HTMLElement): void {
     const def = TOWERS[id];
-    if (this.game.state.gold < def.cost) {
+    if (this.game.state.gold < this.price(def.cost)) {
       this.audio.play('error');
       card.classList.remove('denied');
       void card.offsetWidth;
@@ -261,9 +276,9 @@ export class Panels {
     const info: BuildConfirmInfo = {
       icon: def.icon,
       name: def.name,
-      cost: def.cost,
-      damage: level.damage,
-      range: level.range,
+      cost: this.price(def.cost),
+      damage: this.dmg(level.damage),
+      range: this.rng(level.range),
       splashRadius: level.splashRadius,
     };
     const slot = this.game.state.buildSlots.find((s) => s.id === slotId);
@@ -312,6 +327,7 @@ export class Panels {
     const stats = getTowerLevel(tower.type, tower.level, tower.branch);
     const maxed = isMaxLevel(tower.type, tower.level);
     const cost = upgradeCostFor(tower.type, tower.level, tower.branch);
+    const price = cost === undefined ? undefined : this.price(cost);
     const attackPerSec = stats.attackSpeed.toFixed(2).replace(/\.?0+$/, '');
     const branch = tower.branch ? def.branches?.find((b) => b.id === tower.branch) : undefined;
 
@@ -327,8 +343,8 @@ export class Panels {
     const statsEl = document.createElement('div');
     statsEl.className = 'stat-list';
     let rows =
-      `<div class="stat-row"><span>Damage</span><strong>${stats.damage}</strong></div>` +
-      `<div class="stat-row"><span>Range</span><strong>${stats.range}</strong></div>` +
+      `<div class="stat-row"><span>Damage</span><strong>${this.dmg(stats.damage)}</strong></div>` +
+      `<div class="stat-row"><span>Range</span><strong>${this.rng(stats.range)}</strong></div>` +
       `<div class="stat-row"><span>Attack</span><strong>${attackPerSec}/s</strong></div>` +
       `<div class="stat-row" data-hull><span>Hull</span><strong>${tower.hp}/${tower.maxHp}</strong></div>`;
     if (stats.splashRadius) {
@@ -350,7 +366,7 @@ export class Panels {
       wrap.appendChild(label);
       for (const br of def.branches) {
         const tier = br.levels[nextLevel - (def.branchLevel ?? nextLevel)] ?? br.levels[0];
-        const bCost = upgradeCostFor(tower.type, tower.level, br.id) ?? cost ?? 0;
+        const bCost = this.price(upgradeCostFor(tower.type, tower.level, br.id) ?? cost ?? 0);
         const btn = document.createElement('button');
         btn.className = 'tower-option branch-option';
         btn.disabled = state.gold < bCost;
@@ -363,26 +379,26 @@ export class Panels {
         const sub = document.createElement('small');
         sub.className = 'tower-sub';
         sub.textContent =
-          `DMG ${tier.damage} • RNG ${tier.range} • ${tier.attackSpeed}/s` +
+          `DMG ${this.dmg(tier.damage)} • RNG ${this.rng(tier.range)} • ${tier.attackSpeed}/s` +
           (tier.splashRadius ? ` • AoE ${tier.splashRadius}` : '');
         btn.appendChild(sub);
-        btn.addEventListener('pointerenter', () => this.hooks.showRange(tower.x, tower.y, tier.range));
-        btn.addEventListener('pointerleave', () => this.hooks.showRange(tower.x, tower.y, stats.range));
+        btn.addEventListener('pointerenter', () => this.hooks.showRange(tower.x, tower.y, this.rng(tier.range)));
+        btn.addEventListener('pointerleave', () => this.hooks.showRange(tower.x, tower.y, this.rng(stats.range)));
         btn.addEventListener('click', () => {
           if (!this.game.upgradeTower(tower.id, br.id)) this.audio.play('error');
           this.refresh();
         });
         wrap.appendChild(btn);
       }
-    } else if (!maxed && cost !== undefined) {
+    } else if (!maxed && price !== undefined) {
       const next = getTowerLevel(tower.type, nextLevel, tower.branch);
       const up = document.createElement('button');
       up.className = 'btn btn-accent btn-block';
-      up.disabled = state.gold < cost;
-      up.dataset.cost = String(cost);
-      up.innerHTML = `⬆ Upgrade → <strong>💰 ${cost}</strong><small>DMG ${next.damage} • RNG ${next.range}</small>`;
-      up.addEventListener('pointerenter', () => this.hooks.showRange(tower.x, tower.y, next.range));
-      up.addEventListener('pointerleave', () => this.hooks.showRange(tower.x, tower.y, stats.range));
+      up.disabled = state.gold < price;
+      up.dataset.cost = String(price);
+      up.innerHTML = `⬆ Upgrade → <strong>💰 ${price}</strong><small>DMG ${this.dmg(next.damage)} • RNG ${this.rng(next.range)}</small>`;
+      up.addEventListener('pointerenter', () => this.hooks.showRange(tower.x, tower.y, this.rng(next.range)));
+      up.addEventListener('pointerleave', () => this.hooks.showRange(tower.x, tower.y, this.rng(stats.range)));
       up.addEventListener('click', () => {
         const ok = this.game.upgradeTower(tower.id);
         if (!ok) {
@@ -391,7 +407,7 @@ export class Panels {
           const t = this.game.state.towers.find((x) => x.id === tower.id);
           if (t) {
             const s = getTowerLevel(t.type, t.level, t.branch);
-            this.hooks.showRange(t.x, t.y, s.range);
+            this.hooks.showRange(t.x, t.y, this.rng(s.range));
           }
         }
         this.refresh();
