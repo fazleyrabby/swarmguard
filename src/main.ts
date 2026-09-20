@@ -84,6 +84,8 @@ function toRenderState(game: Game): {
       level: t.level,
       angle: t.angle,
       branch: t.branch,
+      hp: t.hp,
+      maxHp: t.maxHp,
     })),
     projectiles: s.projectiles.map((p) => ({
       id: p.id,
@@ -380,6 +382,28 @@ async function boot(): Promise<void> {
     worldView.refreshSlots();
     worldView.hideRange();
     effects.gold(tower.x, tower.y, tower.refund);
+    panels.refresh();
+  });
+
+  game.events.on('tower:damaged', (payload) => {
+    const hit = payload as { towerId: string; x: number; y: number; fromX: number; fromY: number };
+    entityView.flashTower(hit.towerId);
+    effects.spearThrow(hit.fromX, hit.fromY, hit.x, hit.y);
+    audio.play('enemy-hit');
+    panels.refresh();
+  });
+
+  game.events.on('tower:destroyed', (payload) => {
+    const tower = payload as { x: number; y: number };
+    worldView.refreshSlots();
+    worldView.hideRange();
+    effects.deathPop(tower.x, tower.y, 0x9ca3af);
+    audio.play('explosion');
+    panels.refresh();
+  });
+
+  game.events.on('tower:repaired', () => {
+    audio.play('tower-upgrade');
     panels.refresh();
   });
 

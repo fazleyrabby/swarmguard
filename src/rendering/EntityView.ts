@@ -24,6 +24,8 @@ export interface RenderTower {
   level: number;
   angle?: number;
   branch?: string;
+  hp?: number;
+  maxHp?: number;
 }
 
 export interface RenderProjectile {
@@ -65,11 +67,17 @@ interface TowerNode {
   base: PIXI.Sprite;
   badge: PIXI.Text;
   pips: PIXI.Graphics;
+  hpBar: PIXI.Graphics;
   angle: number;
   recoil: number;
   level: number;
   kind: string;
   branch?: string;
+  /** Placement grow 0.2→1, multiplied with hitPunch for the final scale. */
+  baseScale: number;
+  hitPunch: number;
+  lastHpFrac: number;
+  lastHpVisible: boolean;
 }
 
 interface ProjectileNode {
@@ -144,6 +152,8 @@ function enemyVisual(type: string): EnemyVisual {
       return { key: 'runner', texture: 'runner', flash: 'flash-runner', wobble: 1.8, bodyScale: 1, shadowY: 13, shadowScale: 0.75, barW: 36, barH: 6, barY: -24, alwaysHpBar: false, hop: 2.5, squash: 0.05, stride: 0.18, lean: 0.14 };
     case 'tank':
       return { key: 'tank', texture: 'tank', flash: 'flash-tank', wobble: 0.6, bodyScale: 1, shadowY: 24, shadowScale: 1.5, barW: 48, barH: 6, barY: -34, alwaysHpBar: false, hop: 1.2, squash: 0.03, stride: 0.1, lean: 0.04 };
+    case 'spearman':
+      return { key: 'grunt', texture: 'spearman', flash: 'flash-spearman', wobble: 1.2, bodyScale: 1, shadowY: 15, shadowScale: 0.9, barW: 38, barH: 6, barY: -26, alwaysHpBar: false, hop: 3.5, squash: 0.07, stride: 0.15, lean: 0.08 };
     case 'boss':
     case 'boss-shielded':
     case 'boss-regen':
@@ -227,6 +237,7 @@ export class EntityView {
     bake('grunt', this.gruntG());
     bake('runner', this.runnerG());
     bake('tank', this.tankG());
+    bake('spearman', this.spearmanG());
     bake('boss', this.bossG());
     bake('boss-shielded', this.bossG(0x3b82f6, 0x1e3a8a, 0xbfdbfe, 0x93c5fd, 0x1e40af, 0xe0f2fe, 0x1e40af));
     bake('boss-regen', this.bossG(0x22c55e, 0x14532d, 0xbbf7d0, 0x86efac, 0x166534, 0xfef3c7, 0x7a5b00));
@@ -234,6 +245,7 @@ export class EntityView {
     bake('flash-grunt', this.flashCircleG(20));
     bake('flash-runner', this.flashCircleG(16));
     bake('flash-tank', this.flashCircleG(30));
+    bake('flash-spearman', this.flashCircleG(19));
     bake('flash-boss', this.flashCircleG(52, 52, 56));
     bake('tower-base-crossbow', this.towerBaseG(0xb0845a, 0x6b4226));
     bake('tower-base-cannon', this.towerBaseG(0x6b7280, 0x374151));
@@ -278,6 +290,12 @@ export class EntityView {
   kickTower(id: string | number, strength = 1): void {
     const n = this.towers.get(id);
     if (n) n.recoil = Math.min(1.4, n.recoil + strength);
+  }
+
+  /** Scale-punch when a tower takes melee damage. Wired to `tower:damaged`. */
+  flashTower(id: string | number): void {
+    const n = this.towers.get(id);
+    if (n) n.hitPunch = 1;
   }
 
   // ---------- enemies ----------
@@ -479,10 +497,12 @@ export class EntityView {
         n.root.scale.set(0.2); // placement bounce (Effects.place plays the glow)
       }
       n.root.position.set(t.x, t.y);
-      if (n.root.scale.x < 1) {
-        const s = Math.min(1, n.root.scale.x + dt * 4);
-        n.root.scale.set(s >= 1 ? 1 : s < 0.8 ? s : 1 + (s - 0.8) * 0.5);
+      if (n.baseScale < 1) {
+        const s = Math.min(1, n.baseScale + dt * 4);
+        n.baseScale = s >= 1 ? 1 : s < 0.8 ? s : 1 + (s - 0.8) * 0.5;
       }
+      n.hitPunch = Math.max(0, n.hitPunch - dt * 5);
+      n.root.scale.set(n.baseScale * (1 + n.hitPunch * 0.07));
       if (n.level !== t.level || n.branch !== t.branch) {
         n.level = t.level;
         n.branch = t.branch;
@@ -498,6 +518,25 @@ export class EntityView {
       n.top.rotation = n.angle;
       const back = n.recoil * 7;
       n.top.position.set(-Math.cos(n.angle) * back, -Math.sin(n.angle) * back);
+      // Hull bar: only while damaged (healed towers hide it again).
+      const frac =
+        t.maxHp !== undefined && t.maxHp > 0 && t.hp !== undefined
+          ? Math.min(1, Math.max(0, t.hp / t.maxHp))
+          : 1;
+      const visible = frac < 0.999;
+      if (visible !== n.lastHpVisible || Math.abs(frac - n.lastHpFrac) > 0.01) {
+        n.lastHpVisible = visible;
+        n.lastHpFrac = frac;
+        n.hpBar.visible = visible;
+        if (visible) {
+          const bw = 44;
+          const bh = 6;
+          const fill = frac > 0.55 ? 0x4ade80 : frac > 0.28 ? 0xfbbf24 : 0xef4444;
+          n.hpBar.clear();
+          n.hpBar.roundRect(0, 0, bw, bh, bh / 2).fill({ color: 0x1f2937, alpha: 0.85 });
+          n.hpBar.roundRect(1, 1, (bw - 2) * frac, bh - 2, (bh - 2) / 2).fill({ color: fill });
+        }
+      }
     }
     for (const [id, n] of this.towers) {
       if (!seen.has(id)) {
@@ -539,8 +578,12 @@ export class EntityView {
     const pips = new PIXI.Graphics();
     pips.eventMode = 'none';
     pips.position.y = 34;
-    root.addChild(shadow, base, top, badge, pips);
-    const node: TowerNode = { root, top, base, badge, pips, angle: -Math.PI / 2, recoil: 0, level, kind, branch: undefined };
+    const hpBar = new PIXI.Graphics();
+    hpBar.visible = false;
+    hpBar.eventMode = 'none';
+    hpBar.position.set(-22, -52);
+    root.addChild(shadow, base, top, badge, pips, hpBar);
+    const node: TowerNode = { root, top, base, badge, pips, hpBar, angle: -Math.PI / 2, recoil: 0, level, kind, branch: undefined, baseScale: 0.2, hitPunch: 0, lastHpFrac: 1, lastHpVisible: false };
     this.drawPips(node);
     return node;
   }
@@ -645,6 +688,28 @@ export class EntityView {
     // Motion ticks: sells the speed.
     g.poly([2, 16, 8, 16]).stroke({ width: 2.5, color: 0xfdba74, cap: 'round' });
     g.poly([0, 24, 7, 24]).stroke({ width: 2.5, color: 0xfdba74, cap: 'round' });
+    return g;
+  }
+
+  private spearmanG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    g.poly([38, 46, 58, 8]).stroke({ width: 4, color: 0x92400e, cap: 'round' });
+    g.poly([54, 4, 62, 12]).stroke({ width: 5, color: 0xe5e7eb, cap: 'round' });
+    g.circle(24, 28, 16).fill({ color: 0xef4444 });
+    g.circle(24, 28, 16).stroke({ width: 4, color: 0x7f1d1d });
+    g.ellipse(24, 34, 9, 6).fill({ color: 0xfca5a5 });
+    g.circle(29, 21, 3.5).fill({ color: 0xfee2e2, alpha: 0.9 });
+    g.circle(15, 44, 4.5).fill({ color: 0xdc2626 });
+    g.circle(33, 44, 4.5).fill({ color: 0xdc2626 });
+    g.rect(9, 12, 30, 5).fill({ color: 0x7f1d1d });
+    g.circle(17, 25, 6).fill({ color: 0xffffff });
+    g.circle(31, 25, 6).fill({ color: 0xffffff });
+    g.circle(17, 25, 6).stroke({ width: 2, color: 0x7f1d1d });
+    g.circle(31, 25, 6).stroke({ width: 2, color: 0x7f1d1d });
+    g.circle(18, 26, 2.8).fill({ color: 0x1f2937 });
+    g.circle(32, 26, 2.8).fill({ color: 0x1f2937 });
+    g.poly([10, 16, 22, 19]).stroke({ width: 3, color: 0x7f1d1d, cap: 'round' });
+    g.poly([28, 19, 40, 16]).stroke({ width: 3, color: 0x7f1d1d, cap: 'round' });
     return g;
   }
 

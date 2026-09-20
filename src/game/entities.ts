@@ -41,6 +41,16 @@ export interface Enemy {
   slowTimeLeft: number;
   /** Slow strength 0–1 (fraction of speed removed). */
   slowFactor: number;
+  /** Tower-attack range in world px (spearman). Undefined = walks past towers. */
+  attackRange?: number;
+  /** Damage dealt per stab to the engaged tower. */
+  attackDamage?: number;
+  /** Seconds between stabs. */
+  attackInterval?: number;
+  /** Seconds until the next stab lands. */
+  attackCooldown?: number;
+  /** Id of the tower currently being stabbed (validated every tick). */
+  attackTargetId?: string;
 }
 
 export interface Tower {
@@ -50,6 +60,10 @@ export interface Tower {
   y: number;
   /** 1-based level into the tower definition's levels array. */
   level: number;
+  /** Current structural HP — spearmen chew through this. */
+  hp: number;
+  /** Max structural HP at the current level. */
+  maxHp: number;
   /** Chosen specialization id (once level reaches the tower's branchLevel). */
   branch?: string;
   /** Seconds until the tower can fire again. */

@@ -348,3 +348,75 @@ describe('game flow', () => {
     expect(g.buildTower('slot-1', 'crossbow')).toBeDefined();
   });
 });
+
+describe('spearman', () => {
+  function spearmanNextToTower(): Game {
+    const g = new Game(7);
+    g.startGame();
+    const t = g.buildTower('slot-1', 'crossbow');
+    expect(t).toBeDefined();
+    const e = makeEnemy('spearman', 1, 1);
+    expect(e.attackRange).toBe(110);
+    e.x = t!.x + 20;
+    e.y = t!.y;
+    g.state.enemies.push(e);
+    return g;
+  }
+  it('stops to stab towers in reach instead of walking past', () => {
+    const g = spearmanNextToTower();
+    const tower = g.state.towers[0];
+    const enemy = g.state.enemies[0];
+    const { x, y } = enemy;
+    g.update(0.5);
+    expect(enemy.attackTargetId).toBe(tower.id);
+    expect(enemy.x).toBe(x);
+    expect(enemy.y).toBe(y);
+    expect(tower.hp).toBeLessThan(tower.maxHp);
+  });
+  it('destroys the tower at 0 HP, frees the slot and emits an event', () => {
+    const g = spearmanNextToTower();
+    const tower = g.state.towers[0];
+    tower.hp = 3;
+    let destroyed = 0;
+    g.events.on('tower:destroyed', () => destroyed++);
+    g.update(0.5);
+    expect(destroyed).toBe(1);
+    expect(g.state.towers).toHaveLength(0);
+    expect(g.state.buildSlots.find((s) => s.id === 'slot-1')?.occupied).toBe(false);
+    expect(g.buildTower('slot-1', 'crossbow')).toBeDefined();
+  });
+  it('repairs to full for a fraction of invested gold', () => {
+    const g = spearmanNextToTower();
+    const tower = g.state.towers[0];
+    g.update(0.5);
+    expect(tower.hp).toBeLessThan(tower.maxHp);
+    const goldBefore = g.state.gold;
+    expect(g.repairTower(tower.id)).toBe(true);
+    expect(tower.hp).toBe(tower.maxHp);
+    expect(g.state.gold).toBeLessThan(goldBefore);
+    // Full HP or missing tower: no-op.
+    expect(g.repairTower(tower.id)).toBe(false);
+    expect(g.repairTower('nope')).toBe(false);
+  });
+  it('upgrades raise max HP and heal by the delta', () => {
+    const g = new Game(7);
+    g.startGame();
+    g.state.gold = 100000;
+    const t = g.buildTower('slot-1', 'crossbow');
+    const before = t!.maxHp;
+    t!.hp = before - 40;
+    expect(g.upgradeTower(t!.id)).toBe(true);
+    expect(t!.maxHp).toBeGreaterThan(before);
+    expect(t!.hp).toBe(before);
+  });
+  it('joins wave compositions from wave 4, never before', () => {
+    for (const w of [1, 2, 3]) {
+      expect(generateWave(w).composition.some((c) => c.enemyType === 'spearman')).toBe(false);
+    }
+    for (const w of [4, 6, 10]) {
+      const def = generateWave(w);
+      expect(def.composition.some((c) => c.enemyType === 'spearman')).toBe(true);
+      expect(expandSpawnQueue(def, 1).filter((t) => t === 'spearman').length).toBeGreaterThan(0);
+    }
+  });
+});

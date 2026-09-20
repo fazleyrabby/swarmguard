@@ -53,8 +53,9 @@ const WAVE_TABLE: Record<
     hp: 1.1,
     speed: 1.05,
     composition: [
-      { enemyType: 'grunt', percentage: 0.8 },
-      { enemyType: 'runner', percentage: 0.2 },
+      { enemyType: 'grunt', percentage: 0.75 },
+      { enemyType: 'runner', percentage: 0.15 },
+      { enemyType: 'spearman', percentage: 0.1 },
     ],
   },
   5: {
@@ -62,8 +63,9 @@ const WAVE_TABLE: Record<
     hp: 1.2,
     speed: 1.05,
     composition: [
-      { enemyType: 'grunt', percentage: 0.8 },
+      { enemyType: 'grunt', percentage: 0.7 },
       { enemyType: 'runner', percentage: 0.2 },
+      { enemyType: 'spearman', percentage: 0.1 },
     ],
   },
   6: {
@@ -71,8 +73,9 @@ const WAVE_TABLE: Record<
     hp: 1.25,
     speed: 1.1,
     composition: [
-      { enemyType: 'grunt', percentage: 0.7 },
+      { enemyType: 'grunt', percentage: 0.6 },
       { enemyType: 'runner', percentage: 0.2 },
+      { enemyType: 'spearman', percentage: 0.1 },
       { enemyType: 'tank', percentage: 0.1 },
     ],
   },
@@ -81,8 +84,9 @@ const WAVE_TABLE: Record<
     hp: 1.35,
     speed: 1.1,
     composition: [
-      { enemyType: 'grunt', percentage: 0.65 },
+      { enemyType: 'grunt', percentage: 0.55 },
       { enemyType: 'runner', percentage: 0.25 },
+      { enemyType: 'spearman', percentage: 0.1 },
       { enemyType: 'tank', percentage: 0.1 },
     ],
   },
@@ -91,8 +95,9 @@ const WAVE_TABLE: Record<
     hp: 1.45,
     speed: 1.15,
     composition: [
-      { enemyType: 'grunt', percentage: 0.65 },
+      { enemyType: 'grunt', percentage: 0.55 },
       { enemyType: 'runner', percentage: 0.25 },
+      { enemyType: 'spearman', percentage: 0.1 },
       { enemyType: 'tank', percentage: 0.1 },
     ],
   },
@@ -101,8 +106,9 @@ const WAVE_TABLE: Record<
     hp: 1.6,
     speed: 1.15,
     composition: [
-      { enemyType: 'grunt', percentage: 0.6 },
+      { enemyType: 'grunt', percentage: 0.5 },
       { enemyType: 'runner', percentage: 0.25 },
+      { enemyType: 'spearman', percentage: 0.1 },
       { enemyType: 'tank', percentage: 0.15 },
     ],
   },
@@ -111,8 +117,9 @@ const WAVE_TABLE: Record<
     hp: 1.75,
     speed: 1.2,
     composition: [
-      { enemyType: 'grunt', percentage: 0.6 },
+      { enemyType: 'grunt', percentage: 0.5 },
       { enemyType: 'runner', percentage: 0.25 },
+      { enemyType: 'spearman', percentage: 0.1 },
       { enemyType: 'tank', percentage: 0.15 },
     ],
   },
@@ -122,9 +129,11 @@ function compositionForEndlessWave(wave: number): WaveCompositionEntry[] {
   // Post-10 endless: keep wave-10 mix, slightly heavier on tanks over time.
   const tankShare = Math.min(0.15 + (wave - 10) * 0.01, 0.3);
   const runnerShare = 0.25;
+  const spearmanShare = 0.1;
   return [
-    { enemyType: 'grunt', percentage: 1 - runnerShare - tankShare },
+    { enemyType: 'grunt', percentage: 1 - runnerShare - tankShare - spearmanShare },
     { enemyType: 'runner', percentage: runnerShare },
+    { enemyType: 'spearman', percentage: spearmanShare },
     { enemyType: 'tank', percentage: tankShare },
   ];
 }

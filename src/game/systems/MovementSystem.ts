@@ -34,6 +34,9 @@ export function updateMovement(
       if (enemy.slowTimeLeft === 0) enemy.slowFactor = 0;
     }
 
+    // Engaged melee attackers stand their ground (see EnemyAttackSystem).
+    if (enemy.attackTargetId !== undefined) continue;
+
     let remaining =
       effectiveSpeed(enemy.speed, enemy.slowTimeLeft, enemy.slowFactor) *
       (enemy.auraMult ?? 1) *

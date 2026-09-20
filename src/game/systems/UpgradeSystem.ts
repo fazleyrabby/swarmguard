@@ -71,3 +71,15 @@ export function investedFor(type: TowerId, level: number, branchId?: string): nu
 export function sellRefundFor(type: TowerId, level: number, branchId?: string): number {
   return Math.floor(investedFor(type, level, branchId) * 0.7);
 }
+
+/** Full-repair cost: 30% of invested, scaled by the missing-HP fraction. */
+export function repairCostFor(
+  type: TowerId,
+  level: number,
+  branchId: string | undefined,
+  hp: number,
+  maxHp: number,
+): number {
+  if (hp >= maxHp || maxHp <= 0) return 0;
+  return Math.max(1, Math.ceil(investedFor(type, level, branchId) * 0.3 * ((maxHp - hp) / maxHp)));
+}

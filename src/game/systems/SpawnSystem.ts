@@ -54,6 +54,11 @@ export function makeEnemy(
     auraMult: 1,
     slowTimeLeft: 0,
     slowFactor: 0,
+    attackRange: def.attackRange,
+    attackDamage: def.attackDamage,
+    attackInterval: def.attackInterval,
+    attackCooldown: 0,
+    attackTargetId: undefined,
   };
 }
 

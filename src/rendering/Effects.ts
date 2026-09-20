@@ -171,6 +171,32 @@ export class Effects {
     this.muzzle(x, y, angle, true);
   }
 
+  /** Spearman throw: gray tip + brown shaft streaks from thrower to tower. */
+  spearThrow(x1: number, y1: number, x2: number, y2: number): void {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.hypot(dx, dy) || 1;
+    const speed = 520;
+    const life = Math.min(0.3, dist / speed);
+    for (let i = 0; i < 3; i++) {
+      const p = this.spawn();
+      if (!p) return;
+      const back = i * 14;
+      this.launch(p, {
+        x: x1 - (dx / dist) * back,
+        y: y1 - (dy / dist) * back,
+        vx: (dx / dist) * speed,
+        vy: (dy / dist) * speed,
+        life,
+        color: i === 0 ? 0xe5e7eb : 0x92400e,
+        scale: i === 0 ? 0.55 : 0.45,
+        gravity: 0,
+        drag: 0,
+      });
+    }
+    this.flash(x2, y2, 18, 0xfca5a5, 0.1);
+  }
+
   /** Enemy death: colored pop + white flash (spec §41). */
   deathPop(x: number, y: number, color = 0x4ade80): void {
     const big = color === 0xb06bd6;

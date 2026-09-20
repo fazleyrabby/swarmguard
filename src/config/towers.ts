@@ -39,6 +39,8 @@ export interface TowerDefinition {
   icon: string;
   /** Gold to build a level-1 tower. */
   cost: number;
+  /** Structural HP at level 1; spearmen and the like chew through this. */
+  hp: number;
   projectile: 'arrow' | 'cannonball' | 'bomb' | 'frostshard' | 'bullet';
   description: string;
   levels: TowerLevelStats[];
@@ -57,6 +59,7 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
     name: 'Crossbow',
     icon: '🏹',
     cost: 50,
+    hp: 160,
     projectile: 'arrow',
     description: 'Fast single-target tower. Best vs grunts/runners, weak vs tanks.',
     levels: [
@@ -99,6 +102,7 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
     name: 'Cannon',
     icon: '💥',
     cost: 100,
+    hp: 240,
     projectile: 'cannonball',
     description: 'Slow, heavy splash damage. Best vs packed groups.',
     levels: [
@@ -141,6 +145,7 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
     name: 'Bomb Tower',
     icon: '💣',
     cost: 125,
+    hp: 240,
     projectile: 'bomb',
     description: 'Lobs bombs with big AoE + 20% slow for 1.5s. Swarm control.',
     levels: [
@@ -196,6 +201,7 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
     name: 'Frost Tower',
     icon: '❄️',
     cost: 90,
+    hp: 180,
     projectile: 'frostshard',
     description: 'Low damage, strong AoE chill. Keeps swarms bunched and slow.',
     levels: [
@@ -211,6 +217,7 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
     name: 'Sniper',
     icon: '🎯',
     cost: 150,
+    hp: 160,
     projectile: 'bullet',
     description: 'Extreme range, huge single-target damage. Slow fire, best vs tanks & bosses.',
     levels: [
@@ -224,6 +231,14 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
 };
 
 export const TOWER_IDS: TowerId[] = ['crossbow', 'cannon', 'bomb', 'frost', 'sniper'];
+
+/** Max HP grows 25% per level above 1 (heavier towers stay tougher). */
+export const TOWER_HP_PER_LEVEL = 0.25;
+
+/** Structural max HP for a tower at `level`. Pure. */
+export function towerMaxHp(type: TowerId, level: number): number {
+  return Math.round(TOWERS[type].hp * (1 + TOWER_HP_PER_LEVEL * (level - 1)));
+}
 
 /** Cannon AoE falloff (spec §22): center 100%, 50% radius 70%, edge 40%. */
 export const CANNON_FALLOFF = [

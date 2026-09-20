@@ -8,7 +8,7 @@
 import { TOWERS, TOWER_IDS, getTowerLevel, type TowerId } from '../config/towers';
 import { Game, type SpeedSetting } from '../game/Game';
 import type { Tower } from '../game/entities';
-import { isBranchChoice, isMaxLevel, sellRefundFor, upgradeCostFor } from '../game/systems/UpgradeSystem';
+import { isBranchChoice, isMaxLevel, repairCostFor, sellRefundFor, upgradeCostFor } from '../game/systems/UpgradeSystem';
 import type { AudioManager } from '../audio/AudioManager';
 
 export interface PanelHooks {
@@ -120,6 +120,7 @@ export class Panels {
     } else {
       this.updateAffordability();
     }
+    this.syncHull();
   }
 
   /** Identity of the open panel: tower id + level, or slot id. */
@@ -137,6 +138,31 @@ export class Panels {
     this.container.querySelectorAll<HTMLButtonElement>('[data-cost]').forEach((btn) => {
       btn.disabled = gold < Number(btn.dataset.cost);
     });
+  }
+
+  /**
+   * Live-sync the open upgrade panel's hull readout + repair button without
+   * rebuilding the panel (so stabs landing mid-click never eat the click).
+   * Hidden toggling + text updates keep the existing nodes — only the repair
+   * button's first appearance appends... nothing; it is always rendered and
+   * merely unhidden when damage exists.
+   */
+  private syncHull(): void {
+    if (this.openTowerId === null) return;
+    const tower = this.game.state.towers.find((t) => t.id === this.openTowerId);
+    if (!tower) return;
+    const hull = this.container.querySelector('[data-hull] strong');
+    if (hull) hull.textContent = `${tower.hp}/${tower.maxHp}`;
+    const repair = this.container.querySelector<HTMLButtonElement>('[data-repair]');
+    if (!repair) return;
+    const cost = repairCostFor(tower.type, tower.level, tower.branch, tower.hp, tower.maxHp);
+    repair.classList.toggle('hidden', cost === 0);
+    if (cost > 0) {
+      repair.disabled = this.game.state.gold < cost;
+      repair.dataset.cost = String(cost);
+      repair.innerHTML =
+        `🛠 Repair → <strong>💰 ${cost}</strong><small>restore ${tower.maxHp - tower.hp} hull</small>`;
+    }
   }
 
   // --------------------------------------------------------------- rendering
@@ -232,7 +258,8 @@ export class Panels {
     let rows =
       `<div class="stat-row"><span>Damage</span><strong>${stats.damage}</strong></div>` +
       `<div class="stat-row"><span>Range</span><strong>${stats.range}</strong></div>` +
-      `<div class="stat-row"><span>Attack</span><strong>${attackPerSec}/s</strong></div>`;
+      `<div class="stat-row"><span>Attack</span><strong>${attackPerSec}/s</strong></div>` +
+      `<div class="stat-row" data-hull><span>Hull</span><strong>${tower.hp}/${tower.maxHp}</strong></div>`;
     if (stats.splashRadius) {
       rows += `<div class="stat-row"><span>Splash</span><strong>${stats.splashRadius}</strong></div>`;
     }
@@ -302,6 +329,23 @@ export class Panels {
     }
 
     const refund = sellRefundFor(tower.type, tower.level, tower.branch);
+    // Always rendered; syncHull() unhides it the moment damage exists and
+    // hides it again at full hull. Never rebuilt, so clicks survive stabs.
+    const repairCost = repairCostFor(tower.type, tower.level, tower.branch, tower.hp, tower.maxHp);
+    const repair = document.createElement('button');
+    repair.className = 'btn btn-block';
+    repair.dataset.repair = '';
+    repair.classList.toggle('hidden', repairCost === 0);
+    if (repairCost > 0) {
+      repair.disabled = state.gold < repairCost;
+      repair.dataset.cost = String(repairCost);
+      repair.innerHTML = `🛠 Repair → <strong>💰 ${repairCost}</strong><small>restore ${tower.maxHp - tower.hp} hull</small>`;
+    }
+    repair.addEventListener('click', () => {
+      if (!this.game.repairTower(tower.id)) this.audio.play('error');
+      this.refresh();
+    });
+    wrap.appendChild(repair);
     const sell = document.createElement('button');
     sell.className = 'btn btn-block';
     sell.innerHTML = `💰 Sell → <strong>+${refund}g</strong><small>70% refund</small>`;

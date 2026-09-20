@@ -7,7 +7,7 @@
  *
  * No rendering here — the PixiJS layer observes state + events separately.
  */
-import { TOWERS, type TowerId } from '../config/towers';
+import { TOWERS, towerMaxHp, type TowerId } from '../config/towers';
 import { DEFAULT_MAP, type MapDefinition } from '../config/maps';
 import { DEFAULT_CHALLENGE, type ChallengeDefinition } from '../config/challenges';
 import { FINAL_MVP_WAVE } from '../config/waves';
@@ -36,11 +36,13 @@ import {
   buildCostFor,
   isBranchChoice,
   isMaxLevel,
+  repairCostFor,
   sellRefundFor,
   upgradeCostFor,
 } from './systems/UpgradeSystem';
 import { buildSpawnQueue, generateBossRushWave, generateWave } from './systems/WaveGenerator';
 import { updateAbilities } from './systems/AbilitySystem';
+import { updateEnemyAttacks } from './systems/EnemyAttackSystem';
 
 /**
  * Default targeting per tower type.
@@ -152,6 +154,7 @@ export class Game {
 
     updateSpawn(s, dt);
     updateAbilities(s, dt, this.events);
+    updateEnemyAttacks(s, dt, this.events);
     updateMovement(s, dt, this.events);
     if (isGameOver(s)) {
       this.saveBestWave();
@@ -221,6 +224,8 @@ export class Game {
       x: slot.x,
       y: slot.y,
       level: 1,
+      hp: towerMaxHp(towerType, 1),
+      maxHp: towerMaxHp(towerType, 1),
       cooldown: 0,
       targeting: TOWER_DEFAULT_TARGETING[towerType] ?? DEFAULT_TARGETING,
       targetId: undefined,
@@ -246,12 +251,28 @@ export class Game {
     if (cost === undefined || !canAfford(s, cost)) return false;
     spendGold(s, cost, this.events);
     applyUpgrade(tower, mustChooseBranch ? branchId : undefined);
+    const maxHp = towerMaxHp(tower.type, tower.level);
+    tower.hp = Math.min(maxHp, tower.hp + Math.max(0, maxHp - tower.maxHp));
+    tower.maxHp = maxHp;
     this.events.emit('tower:upgraded', tower);
     return true;
   }
 
   buildCost(type: TowerId): number {
     return buildCostFor(type);
+  }
+
+  /** Repair a damaged tower to full HP. False when full / broke / missing. */
+  repairTower(towerId: string): boolean {
+    const s = this.state;
+    const tower = s.towers.find((t) => t.id === towerId);
+    if (!tower || tower.hp >= tower.maxHp) return false;
+    const cost = repairCostFor(tower.type, tower.level, tower.branch, tower.hp, tower.maxHp);
+    if (!canAfford(s, cost)) return false;
+    spendGold(s, cost, this.events);
+    tower.hp = tower.maxHp;
+    this.events.emit('tower:repaired', tower);
+    return true;
   }
 
   /** Sell a tower for 70% refund. Frees its build slot. Returns refund or 0. */

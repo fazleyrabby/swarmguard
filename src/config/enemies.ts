@@ -6,6 +6,7 @@ export type EnemyType =
   | 'grunt'
   | 'runner'
   | 'tank'
+  | 'spearman'
   | 'boss'
   | 'boss-shielded'
   | 'boss-regen'
@@ -40,6 +41,12 @@ export interface EnemyDefinition {
   auraRadius?: number;
   /** Bonus speed fraction granted to allies in the aura (herald ability). */
   auraSpeedBonus?: number;
+  /** Tower-attack range in world px — stops to stab towers this close. */
+  attackRange?: number;
+  /** Damage dealt per stab to the engaged tower. */
+  attackDamage?: number;
+  /** Seconds between stabs. */
+  attackInterval?: number;
 }
 
 export const ENEMIES: Record<EnemyType, EnemyDefinition> = {
@@ -75,6 +82,20 @@ export const ENEMIES: Record<EnemyType, EnemyDefinition> = {
     radius: 22,
     color: 0xb06bd6,
     description: 'Slow, armored, dangerous.',
+  },
+  spearman: {
+    type: 'spearman',
+    name: 'Spearman',
+    hp: 130,
+    speed: 34,
+    damage: 10,
+    reward: 8,
+    radius: 13,
+    color: 0xef4444,
+    attackRange: 110,
+    attackDamage: 3,
+    attackInterval: 1.4,
+    description: 'Hurls spears at towers in reach instead of walking past.',
   },
   boss: {
     type: 'boss',
@@ -173,6 +194,7 @@ export const ENEMY_TYPES: EnemyType[] = [
   'grunt',
   'runner',
   'tank',
+  'spearman',
   'boss',
   'boss-shielded',
   'boss-regen',

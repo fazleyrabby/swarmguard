@@ -4,8 +4,13 @@ import { TOWERS } from '../src/config/towers';
 import { getChallenge } from '../src/config/challenges';
 import { isBranchChoice, upgradeCostFor } from '../src/game/systems/UpgradeSystem';
 
+let destroyedTowers = 0;
+
 function autoSpend(g: Game, midWave = false): void {
   const s = g.state;
+  for (const t of s.towers) {
+    if (t.hp < t.maxHp) g.repairTower(t.id);
+  }
   const counts = { crossbow: 0, cannon: 0, bomb: 0 };
   for (const t of s.towers) counts[t.type]++;
   const want: Array<'crossbow' | 'cannon' | 'bomb'> = [];
@@ -42,6 +47,7 @@ function autoSpend(g: Game, midWave = false): void {
 
 const challengeId = process.argv[2] ?? 'standard';
 const g = new Game(1337, undefined, getChallenge(challengeId));
+g.events.on('tower:destroyed', () => destroyedTowers++);
 g.startGame();
 autoSpend(g);
 let steps = 0;
@@ -60,8 +66,9 @@ while (
   }
   g.update(DT);
   steps++;
-  if (steps % 900 === 0) autoSpend(g, true);
+  if (steps % 300 === 0) autoSpend(g, true);
   if (steps > 30 * 60 * 60) throw new Error('timeout');
 }
 console.log(`END ${g.state.status} wave=${g.state.wave} hp=${g.state.baseHp} kills=${g.state.totalKills} goldEarned=${g.state.totalGoldEarned} steps=${steps} wallMs=${Date.now() - t0}`);
 console.log(`towers: ${g.state.towers.map((t) => `${t.type}L${t.level}`).join(', ')}`);
+console.log(`towers destroyed: ${destroyedTowers}`);
