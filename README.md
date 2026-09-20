@@ -1,5 +1,7 @@
 # 🏰 Swarmguard
 
+![Swarmguard — build towers, pop monster swarms, defend the Core](public/og-image.png)
+
 A colorful, top-down tower-defense game for the browser. Place towers around the path, pop increasingly ridiculous monster swarms, and keep your castle core alive.
 
 Built with **PixiJS + TypeScript + Vite**. No backend, no accounts, no external assets.

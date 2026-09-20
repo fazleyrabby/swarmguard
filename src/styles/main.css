@@ -1154,14 +1154,37 @@ body {
   }
 }
 
-@media (max-height: 500px) and (orientation: landscape) {
+@media (max-height: 540px) and (orientation: landscape) {
   #app {
-    padding: 6px;
-    gap: 6px;
+    padding: 4px;
+    gap: 4px;
   }
 
   #ui {
-    padding: 6px 10px;
+    padding: 4px 8px;
+    gap: 6px;
+    border-width: 2px;
+  }
+
+  .hud-left,
+  .hud-right {
+    gap: 5px;
+  }
+
+  .hud-pill {
+    padding: 3px 9px;
+    font-size: 12px;
+    border-width: 2px;
+    gap: 4px;
+  }
+
+  .btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .speed-group {
+    gap: 2px;
   }
 
   #game {
@@ -1169,20 +1192,26 @@ body {
   }
 
   #bottombar {
-    padding: 8px 12px;
+    padding: 5px 10px;
     gap: 6px;
+    border-width: 2px;
   }
 
   #btn-start-wave {
-    padding: 9px 16px;
-    font-size: 15px;
+    padding: 7px 14px;
+    font-size: 14px;
   }
 
   #status-text {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .bottom-left {
-    gap: 6px;
+    gap: 4px;
+  }
+
+  .creator-badge {
+    padding: 3px 8px;
+    font-size: 11px;
   }
 }
