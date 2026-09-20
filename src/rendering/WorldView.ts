@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js';
 import { DEFAULT_MAP, type MapDefinition } from '../config/maps';
 import type { Game } from '../game/Game';
+import type { BuildConfirmInfo } from '../ui/Panels';
 import type { Renderer } from './Renderer';
 
 function mulberry32(seed: number): () => number {
@@ -72,6 +73,9 @@ export class WorldView {
   private lastHpFrac = -1;
   private glowCache: PIXI.Texture | null = null;
   private vignetteCache: PIXI.Texture | null = null;
+
+  /** In-game build confirmation popup (replaces native window.confirm). */
+  private confirmPopup: PIXI.Container | null = null;
 
   private vignetteTexture(): PIXI.Texture {
     if (this.vignetteCache) return this.vignetteCache;
@@ -168,6 +172,99 @@ export class WorldView {
   hideRange(): void {
     this.rangeTarget = null;
     this.rangeG.clear();
+  }
+
+  /** Mini ✓ / ✕ button pair floating above the slot (replaces native confirm). */
+  showBuildConfirm(
+    x: number, y: number, info: BuildConfirmInfo,
+    onConfirm: () => void, onCancel: () => void,
+  ): void {
+    this.hideBuildConfirm();
+    if (!this.renderer?.layers?.overlay) return;
+    const layer = this.renderer.layers.overlay;
+    // Effects sets overlay.eventMode = 'none', which makes PixiJS prune the whole
+    // subtree from hit testing. Re-enable traversal so the ✓/✕ buttons receive events.
+    layer.eventMode = 'passive';
+    const popup = new PIXI.Container();
+    popup.position.set(x, y);
+    popup.eventMode = 'passive';
+    this.confirmPopup = popup;
+
+    const btnR = 26;
+    const gap = 60;
+    const btnOffset = 52; // y-offset for buttons above the tower
+
+    // Shadow tower: semi-transparent icon at the slot centre.
+    const shadowTower = new PIXI.Text({
+      text: info.icon,
+      style: {
+        fontFamily: 'ui-rounded, system-ui, sans-serif',
+        fontSize: 56,
+        fill: 0xffffff,
+      },
+    });
+    shadowTower.anchor.set(0.5);
+    shadowTower.alpha = 0.18;
+    popup.addChild(shadowTower);
+
+    // Green ✓ — top-left of the pair. Graphics has no containsPoint in Pixi v8,
+    // so an explicit circular hitArea is required for the button to be clickable.
+    const okBtn = new PIXI.Graphics();
+    okBtn.circle(-gap / 2, -btnOffset, btnR).fill({ color: 0x22c55e, alpha: 0.95 });
+    okBtn.circle(-gap / 2, -btnOffset, btnR).stroke({ width: 2.5, color: 0xffffff, alpha: 0.85 });
+    okBtn.eventMode = 'static';
+    okBtn.cursor = 'pointer';
+    okBtn.hitArea = new PIXI.Circle(-gap / 2, -btnOffset, btnR);
+    okBtn.on('pointerdown', () => {
+      this.hideBuildConfirm();
+      onConfirm();
+    });
+    popup.addChild(okBtn);
+    const okLabel = new PIXI.Text({
+      text: '✓',
+      style: { fontFamily: 'ui-rounded, system-ui, sans-serif', fontSize: 28, fontWeight: '700', fill: 0xffffff },
+    });
+    okLabel.anchor.set(0.5);
+    okLabel.position.set(-gap / 2, -btnOffset);
+    popup.addChild(okLabel);
+
+    // Red ✕ — top-right of the pair
+    const cancelBtn = new PIXI.Graphics();
+    cancelBtn.circle(gap / 2, -btnOffset, btnR).fill({ color: 0xef4444, alpha: 0.95 });
+    cancelBtn.circle(gap / 2, -btnOffset, btnR).stroke({ width: 2.5, color: 0xffffff, alpha: 0.85 });
+    cancelBtn.eventMode = 'static';
+    cancelBtn.cursor = 'pointer';
+    cancelBtn.hitArea = new PIXI.Circle(gap / 2, -btnOffset, btnR);
+    cancelBtn.on('pointerdown', () => {
+      this.hideBuildConfirm();
+      onCancel();
+    });
+    popup.addChild(cancelBtn);
+    const cancelLabel = new PIXI.Text({
+      text: '✕',
+      style: { fontFamily: 'ui-rounded, system-ui, sans-serif', fontSize: 28, fontWeight: '700', fill: 0xffffff },
+    });
+    cancelLabel.anchor.set(0.5);
+    cancelLabel.position.set(gap / 2, -btnOffset);
+    popup.addChild(cancelLabel);
+
+    layer.addChild(popup);
+  }
+
+  hideBuildConfirm(): void {
+    if (this.confirmPopup) {
+      this.confirmPopup.parent?.removeChild(this.confirmPopup);
+      this.confirmPopup.destroy({ children: true });
+      this.confirmPopup = null;
+      if (this.renderer?.layers?.overlay) {
+        this.renderer.layers.overlay.eventMode = 'none';
+      }
+    }
+  }
+
+  /** Whether the build-confirm popup is currently visible on the map. */
+  hasBuildConfirm(): boolean {
+    return this.confirmPopup !== null;
   }
 
   // ---- build (once) ----

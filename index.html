@@ -11,6 +11,11 @@
     <meta name="theme-color" content="#1a2440" />
     <link rel="canonical" href="https://swarmguard.fazleyrabbi.xyz/" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Swarmguard" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
@@ -73,29 +78,41 @@
         <div id="panel-slot" class="hidden"></div>
       </div>
 
-      <div id="bottombar">
-        <div class="bottom-left">
-          <a
-            href="https://fazleyrabbi.xyz"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="creator-badge"
-            aria-label="Made by fazleyrabbi"
-          >
-            <span class="creator-badge__icon" aria-hidden="true">⚡</span>
-            <span class="creator-badge__text">
-              <span class="creator-badge__label">made by</span>
-              <span class="creator-badge__name">fazleyrabbi</span>
-            </span>
-          </a>
-          <button type="button" class="btn btn-small support-btn" id="btn-open-support" title="Support the developer">
-            <span aria-hidden="true">☕</span>
-            <span>Support Me</span>
-          </button>
-          <div id="visitor-counter-mount"></div>
+      <div id="bottom-area">
+        <div id="bottombar">
+          <div class="bottom-left">
+            <a
+              href="https://fazleyrabbi.xyz"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="creator-badge"
+              aria-label="Made by fazleyrabbi"
+            >
+              <span class="creator-badge__icon" aria-hidden="true">⚡</span>
+              <span class="creator-badge__text">
+                <span class="creator-badge__label">made by</span>
+                <span class="creator-badge__name">fazleyrabbi</span>
+              </span>
+            </a>
+            <button type="button" class="btn btn-small support-btn" id="btn-open-support" title="Support the developer">
+              <span aria-hidden="true">☕</span>
+              <span>Support Me</span>
+            </button>
+            <div id="visitor-counter-mount"></div>
+          </div>
+          <span id="status-text">Loading…</span>
         </div>
-        <span id="status-text">Loading…</span>
-        <button class="btn btn-primary" id="btn-start-wave">⚔ START WAVE</button>
+        <div id="bottom-actions">
+          <button class="btn btn-primary" id="btn-start-wave">⚔ START WAVE</button>
+          <button
+            type="button"
+            class="btn btn-small"
+            id="btn-footer-toggle"
+            aria-label="Toggle footer info"
+            aria-expanded="false"
+            title="Info"
+          >▾</button>
+        </div>
       </div>
       <div id="debug-overlay" class="hidden"></div>
 

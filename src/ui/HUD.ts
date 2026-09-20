@@ -90,7 +90,8 @@ export class HUD {
   private muteBtn = el<HTMLButtonElement>('btn-mute');
   private fullscreenBtn = el<HTMLButtonElement>('btn-fullscreen');
   private speedBtns: HTMLButtonElement[] = [];
-  private bottombar = el('bottombar');
+  private bottomArea = el('bottom-area');
+  private footerToggleBtn = el<HTMLButtonElement>('btn-footer-toggle');
   private statusText = el('status-text');
   private startWaveBtn = el<HTMLButtonElement>('btn-start-wave');
   private overlayRoot = el('overlay-root');
@@ -145,6 +146,11 @@ export class HUD {
       });
     }
     this.startWaveBtn.addEventListener('click', () => callbacks.onStartWave());
+    this.footerToggleBtn.addEventListener('click', () => {
+      const open = this.bottomArea.classList.toggle('footer-open');
+      this.footerToggleBtn.textContent = open ? '▴' : '▾';
+      this.footerToggleBtn.setAttribute('aria-expanded', String(open));
+    });
 
     this.supportOpenBtn.addEventListener('click', () => this.showSupport());
     this.supportCloseBtn.addEventListener('click', () => this.hideSupport());
@@ -240,7 +246,7 @@ export class HUD {
 
   setChromeVisible(visible: boolean): void {
     this.top.classList.toggle('hidden', !visible);
-    this.bottombar.classList.toggle('hidden', !visible);
+    this.bottomArea.classList.toggle('hidden', !visible);
   }
 
   // --------------------------------------------------------------- overlays

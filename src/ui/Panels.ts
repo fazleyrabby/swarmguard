@@ -11,9 +11,25 @@ import type { Tower } from '../game/entities';
 import { isBranchChoice, isMaxLevel, repairCostFor, sellRefundFor, upgradeCostFor } from '../game/systems/UpgradeSystem';
 import type { AudioManager } from '../audio/AudioManager';
 
+export interface BuildConfirmInfo {
+  icon: string;
+  name: string;
+  cost: number;
+  damage: number;
+  range: number;
+  splashRadius?: number;
+}
+
 export interface PanelHooks {
   showRange: (x: number, y: number, radius: number) => void;
   hideRange: () => void;
+  showBuildConfirm: (
+    x: number, y: number,
+    info: BuildConfirmInfo,
+    onConfirm: () => void,
+    onCancel: () => void,
+  ) => void;
+  hideBuildConfirm: () => void;
 }
 
 export interface PanelKeyboard {
@@ -29,9 +45,14 @@ export class Panels {
   private game: Game;
   private audio: AudioManager;
   private hooks: PanelHooks;
-  private openSlotId: string | null = null;
+  private   openSlotId: string | null = null;
   /** Currently inspected tower. */
   openTowerId: string | null = null;
+  /** True when hover is unavailable — touch builds go straight to ✓/✕ confirm. */
+  private readonly touchUI =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(hover: none)').matches;
   private keyboardBound = false;
   /** Signature of the currently rendered panel; rebuild only when this changes. */
   private renderedKey: string | null = null;
@@ -41,6 +62,11 @@ export class Panels {
     this.game = game;
     this.audio = audio;
     this.hooks = hooks;
+    // Mobile renders the panel as a full-screen sheet with a dimmed
+    // backdrop — tapping the backdrop dismisses it.
+    this.container.addEventListener('click', (e) => {
+      if (e.target === this.container) this.close();
+    });
   }
 
   /** Swap the Game instance (used on restart, which creates a fresh Game). */
@@ -85,6 +111,7 @@ export class Panels {
     this.openTowerId = null;
     this.renderedKey = null;
     this.hooks.hideRange();
+    this.hooks.hideBuildConfirm();
     this.render();
   }
 
@@ -102,11 +129,8 @@ export class Panels {
         return;
       }
       if (slot.occupied) {
-        // Slot just got a tower — switch to its upgrade panel.
-        if (slot.towerId) {
-          this.openUpgrade(slot.towerId);
-          return;
-        }
+        // Slot just got a tower — dismiss instead of popping the upgrade
+        // panel; one popup per tap.
         this.close();
         return;
       }
@@ -129,7 +153,7 @@ export class Panels {
       const tower = this.game.state.towers.find((t) => t.id === this.openTowerId);
       return tower ? `up:${tower.id}:${tower.level}` : 'none';
     }
-    return `build:${this.openSlotId}`;
+    return `build:${this.openSlotId ?? ''}`;
   }
 
   /** Flip disabled states in place — no DOM replacement, clicks survive. */
@@ -183,7 +207,7 @@ export class Panels {
     const state = this.game.state;
     const slot = state.buildSlots.find((s) => s.id === slotId);
     const wrap = document.createElement('div');
-    wrap.className = 'panel';
+    wrap.className = 'panel panel-build';
     const title = document.createElement('h2');
     title.textContent = '🛠 Build tower';
     wrap.appendChild(title);
@@ -206,21 +230,11 @@ export class Panels {
       });
       card.addEventListener('pointerleave', () => this.hooks.hideRange());
       card.addEventListener('click', () => {
-        if (this.game.state.gold < def.cost) {
-          this.audio.play('error');
-          card.classList.remove('denied');
-          // Retrigger the shake animation.
-          void card.offsetWidth;
-          card.classList.add('denied');
-          return;
+        // Touch has no hover: show the range on tap before the ✓/✕ confirm.
+        if (this.touchUI && slot) {
+          this.hooks.showRange(slot.x, slot.y, level.range);
         }
-        const tower = this.game.buildTower(slotId, id);
-        if (!tower) {
-          this.audio.play('error');
-          return;
-        }
-        // refresh() auto-switches to the upgrade panel on success.
-        this.refresh();
+        this.doBuild(slotId, id, card);
       });
       const sub = document.createElement('small');
       sub.className = 'tower-sub';
@@ -231,6 +245,63 @@ export class Panels {
 
     wrap.appendChild(this.closeRow());
     return wrap;
+  }
+
+  /** Touch builds ask for ✓/✕ confirmation; desktop builds place immediately. */
+  private doBuild(slotId: string, id: TowerId, card: HTMLElement): void {
+    const def = TOWERS[id];
+    if (this.game.state.gold < def.cost) {
+      this.audio.play('error');
+      card.classList.remove('denied');
+      void card.offsetWidth;
+      card.classList.add('denied');
+      return;
+    }
+    const level = def.levels[0];
+    const info: BuildConfirmInfo = {
+      icon: def.icon,
+      name: def.name,
+      cost: def.cost,
+      damage: level.damage,
+      range: level.range,
+      splashRadius: level.splashRadius,
+    };
+    const slot = this.game.state.buildSlots.find((s) => s.id === slotId);
+
+    const attemptBuild = (): void => {
+      const tower = this.game.buildTower(slotId, id);
+      if (!tower) {
+        this.audio.play('error');
+        return;
+      }
+      this.hooks.hideBuildConfirm();
+      this.hooks.hideRange();
+      // refresh() dismisses the panel on success.
+      this.refresh();
+    };
+
+    if (!slot || !this.touchUI) {
+      attemptBuild();
+      return;
+    }
+
+    // Close the build-menu panel so the map is unobstructed, but keep the
+    // range preview visible for the ✓/✕ confirm step.
+    this.openSlotId = null;
+    this.openTowerId = null;
+    this.renderedKey = null;
+    this.render();
+
+    this.hooks.showBuildConfirm(
+      slot.x, slot.y, info,
+      () => {
+        this.audio.play('click');
+        attemptBuild();
+      },
+      () => {
+        this.audio.play('click');
+      },
+    );
   }
 
   private upgradeEl(tower: Tower): HTMLElement {

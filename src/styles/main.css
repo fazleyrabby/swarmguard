@@ -22,6 +22,45 @@
   box-sizing: border-box;
 }
 
+/* ---- Chunky UI scrollbars (panels, cards, map picker) ---- */
+.panel,
+.overlay-card,
+.map-picker,
+.support-card {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold) transparent;
+}
+
+.panel::-webkit-scrollbar,
+.overlay-card::-webkit-scrollbar,
+.map-picker::-webkit-scrollbar,
+.support-card::-webkit-scrollbar {
+  width: 12px;
+}
+
+.panel::-webkit-scrollbar-track,
+.overlay-card::-webkit-scrollbar-track,
+.map-picker::-webkit-scrollbar-track,
+.support-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panel::-webkit-scrollbar-thumb,
+.overlay-card::-webkit-scrollbar-thumb,
+.map-picker::-webkit-scrollbar-thumb,
+.support-card::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ffd968, var(--gold));
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+}
+
+.panel::-webkit-scrollbar-thumb:active,
+.overlay-card::-webkit-scrollbar-thumb:active,
+.map-picker::-webkit-scrollbar-thumb:active,
+.support-card::-webkit-scrollbar-thumb:active {
+  background: var(--accent-2);
+}
+
 button {
   touch-action: manipulation;
 }
@@ -460,11 +499,10 @@ body {
   }
 }
 
-/* ---- Bottom bar ---- */
-#bottombar {
+/* ---- Bottom area (footer info + start wave) ---- */
+#bottom-area {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
   background: rgba(255, 248, 231, 0.96);
@@ -472,6 +510,27 @@ body {
   border: 3px solid #2b2440;
   border-radius: var(--radius);
   font-weight: 700;
+}
+
+#bottombar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#bottom-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* Footer toggle only exists on mobile (footer is always visible on desktop). */
+#btn-footer-toggle {
+  display: none;
 }
 
 #btn-start-wave:disabled {
@@ -1109,39 +1168,114 @@ body {
     min-height: 240px;
   }
 
-  /* Footer stacks in reading order: status → action → credits, so the
-   * primary START WAVE button is never pushed below the credit/support row. */
+  /* START WAVE floats above the footer info bar, over the map. */
+  /* Footer is hidden by default; the toggle button reveals it. */
+  #bottom-area {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
   #bottombar {
+    display: none;
+    width: 100%;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: 4px;
+    padding: 5px 8px;
+    background: rgba(255, 248, 231, 0.96);
+    border: 2px solid #2b2440;
+    border-radius: 12px;
+  }
+
+  #bottom-area.footer-open #bottombar {
+    display: flex;
+  }
+
+  /* START WAVE + footer toggle float above the footer, bottom-right. */
+  #bottom-actions {
+    position: absolute;
+    right: 8px;
+    bottom: 100%;
+    margin-bottom: 6px;
+    gap: 6px;
+    z-index: 7;
+  }
+
+  #btn-start-wave {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  #btn-footer-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 9px;
+    font-size: 13px;
+    line-height: 1;
   }
 
   #status-text {
     order: 1;
     flex: 1 1 100%;
     text-align: center;
-    font-size: 13px;
-  }
-
-  #btn-start-wave {
-    order: 2;
-    flex: 1 1 100%;
-    padding: 12px 20px;
-    font-size: 17px;
+    font-size: 10.5px;
   }
 
   .bottom-left {
-    order: 3;
+    order: 2;
     flex: 1 1 100%;
     flex-wrap: wrap;
     justify-content: center;
+    gap: 4px;
+  }
+
+  .creator-badge__label,
+  .visitor-counter__label {
+    display: none;
+  }
+
+  .creator-badge {
+    padding: 3px 7px;
+    font-size: 11px;
+    box-shadow: 0 2px 0 #2b2440;
+  }
+
+  .creator-badge__icon {
+    font-size: 12px;
+  }
+
+  .visitor-counter {
+    padding: 3px 7px;
+    font-size: 11px;
+    box-shadow: 0 2px 0 #2b2440;
+  }
+
+  #btn-open-support {
+    padding: 3px 7px;
+    font-size: 11px;
   }
 
   #panel-slot {
-    left: 10px;
-    right: 10px;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(10, 14, 30, 0.55);
+  }
+
+  #panel-slot .panel {
+    width: 100%;
+    background: rgba(255, 248, 231, 0.93);
   }
 
   .panel {
@@ -1184,6 +1318,10 @@ body {
     padding: 16px;
     max-height: calc(100dvh - 32px);
   }
+
+  .creator-badge__label {
+    display: none;
+  }
 }
 
 @media (max-height: 540px) and (orientation: landscape) {
@@ -1223,28 +1361,58 @@ body {
     min-height: 200px;
   }
 
-  #bottombar {
-    padding: 5px 10px;
+  /* Footer info + START WAVE side by side on short landscape screens. */
+  #bottom-area {
+    flex-direction: row;
+    align-items: center;
     gap: 6px;
-    border-width: 2px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+  }
+
+  #bottombar {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+    padding: 4px 8px;
+    gap: 6px;
+    background: rgba(255, 248, 231, 0.96);
+    border: 2px solid #2b2440;
+    border-radius: 12px;
   }
 
   #btn-start-wave {
+    flex: 0 0 auto;
     padding: 7px 14px;
     font-size: 14px;
   }
 
   #status-text {
+    order: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
     font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .bottom-left {
+    order: 1;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
     gap: 4px;
   }
 
   .creator-badge {
     padding: 3px 8px;
     font-size: 11px;
+  }
+
+  .creator-badge__label {
+    display: none;
   }
 
   .overlay-card {
@@ -1257,5 +1425,551 @@ body {
 
   .panel {
     max-height: calc(100dvh - 24px);
+  }
+
+  #panel-slot {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(10, 14, 30, 0.55);
+  }
+
+  #panel-slot .panel {
+    width: 100%;
+    background: rgba(255, 248, 231, 0.93);
+  }
+}
+
+/* ---- Compact popups for phones (portrait + landscape) ----
+ * Shrinks the start/settings menu and the tower selector so they cover less
+ * of the battlefield and need less scrolling on small screens. */
+@media (max-width: 760px), (max-height: 540px) and (orientation: landscape) {
+  .overlay-card {
+    padding: 12px 11px;
+    gap: 6px;
+    border-width: 2px;
+    border-radius: 14px;
+    min-width: 0;
+    width: min(94%, 360px);
+    max-width: min(94%, 360px);
+    max-height: min(80%, 540px);
+  }
+
+  .game-title {
+    font-size: 21px;
+  }
+
+  .game-subtitle {
+    font-size: 12px;
+  }
+
+  .menu-best,
+  .menu-hint {
+    font-size: 10.5px;
+  }
+
+  .map-picker {
+    gap: 4px;
+    max-height: 22vh;
+    margin: 2px 0;
+  }
+
+  .map-btn {
+    padding: 6px 9px;
+    border-radius: 9px;
+    gap: 1px;
+  }
+
+  .map-name {
+    font-size: 12.5px;
+  }
+
+  .map-desc {
+    font-size: 10.5px;
+  }
+
+  .challenge-label {
+    font-size: 10.5px;
+    margin-top: 1px;
+  }
+
+  .challenge-picker {
+    gap: 4px;
+  }
+
+  .challenge-btn {
+    padding: 4px 8px;
+    font-size: 10.5px;
+  }
+
+  .setting-row {
+    padding: 5px 8px;
+    font-size: 12.5px;
+    border-radius: 9px;
+  }
+
+  .achv-list {
+    gap: 5px;
+  }
+
+  .achv {
+    padding: 5px 7px;
+    gap: 6px;
+    border-radius: 9px;
+  }
+
+  .achv-icon {
+    font-size: 16px;
+    width: 22px;
+  }
+
+  .achv-name {
+    font-size: 12.5px;
+  }
+
+  .achv-desc {
+    font-size: 10.5px;
+  }
+
+  .overlay-card .btn {
+    padding: 7px 14px;
+    font-size: 13px;
+  }
+
+  .overlay-card .btn-small {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  .overlay-card .btn-big {
+    font-size: 15px;
+    padding: 9px 18px;
+  }
+
+  /* Floating build / upgrade panel — a small bottom sheet, not full-screen. */
+  #panel-slot {
+    padding: 8px;
+  }
+
+  #panel-slot .panel {
+    width: calc(100% - 16px);
+    max-width: 420px;
+    max-height: 72dvh;
+    padding: 9px;
+    border-width: 2px;
+    border-radius: 14px;
+    background: rgba(255, 248, 231, 0.94);
+  }
+
+  .panel h2 {
+    font-size: 13px;
+    margin: 0 0 5px;
+  }
+
+  .panel .tower-option {
+    margin: 4px 0;
+    padding: 6px 8px;
+    border-radius: 9px;
+    font-size: 12px;
+  }
+
+  .panel .tower-option .tower-sub {
+    font-size: 10px;
+    padding-top: 1px;
+  }
+
+  .panel .stat-list {
+    padding: 5px 8px;
+    margin-bottom: 5px;
+  }
+
+  .panel .stat-list .stat-row {
+    padding: 4px 8px;
+    font-size: 11.5px;
+  }
+
+  .panel .tower-level {
+    font-size: 11.5px;
+    margin-bottom: 5px;
+  }
+
+  .panel .panel-close-row {
+    margin-top: 5px;
+  }
+
+  /* Tower selector: two columns to cut vertical height. */
+  .panel-build {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+
+  .panel-build h2,
+  .panel-build .panel-close-row {
+    grid-column: 1 / -1;
+  }
+
+  .panel-build .tower-option {
+    margin: 0;
+  }
+
+  .panel-build .tower-option .tower-name,
+  .panel-build .tower-option .tower-cost {
+    float: none;
+    display: block;
+  }
+
+  .panel-build .tower-option .tower-cost {
+    font-size: 11px;
+  }
+
+  /* Wave-complete / game-over / victory stat cards */
+  .overlay-card .stat-list {
+    gap: 4px;
+  }
+
+  .overlay-card .stat-list .stat-row {
+    padding: 4px 8px;
+    font-size: 11.5px;
+  }
+
+  .banner-title {
+    font-size: 18px;
+  }
+
+  /* Top-center wave toast */
+  .banner {
+    top: 8px;
+    padding: 6px 12px;
+    border-width: 2px;
+    border-radius: 11px;
+    font-size: 13.5px;
+  }
+
+  /* Support modal */
+  .support-card {
+    width: min(94%, 380px);
+    max-height: 78dvh;
+    padding: 12px;
+    gap: 6px;
+    border-width: 2px;
+    border-radius: 14px;
+  }
+
+  .support-head {
+    gap: 6px;
+  }
+
+  .support-head .support-icon {
+    width: 38px;
+    height: 38px;
+    font-size: 21px;
+    border-radius: 10px;
+  }
+
+  .support-head h2 {
+    font-size: 15px;
+  }
+
+  .support-head p {
+    font-size: 11.5px;
+  }
+
+  .support-tier {
+    gap: 6px;
+    padding: 7px 9px;
+    border-radius: 10px;
+    box-shadow: 0 2px 0 #2b2440;
+  }
+
+  .tier-emoji {
+    font-size: 18px;
+  }
+
+  .tier-info strong {
+    font-size: 13px;
+  }
+
+  .tier-info small {
+    font-size: 10.5px;
+  }
+
+  .tier-go {
+    font-size: 11.5px;
+    padding: 5px 9px;
+  }
+
+  .payoneer-box {
+    gap: 3px;
+    padding: 7px 9px;
+    border-radius: 10px;
+  }
+
+  .payoneer-id {
+    font-size: 14px;
+  }
+
+  .payoneer-box small {
+    font-size: 10.5px;
+  }
+
+  .support-thanks {
+    font-size: 11.5px;
+  }
+
+  /* Rotate-to-landscape prompt */
+  .rotate-card {
+    gap: 8px;
+    max-width: 280px;
+  }
+
+  .rotate-card h2 {
+    font-size: 18px;
+  }
+
+  .rotate-card p {
+    font-size: 12.5px;
+  }
+
+  .rotate-phone {
+    width: 40px;
+    height: 70px;
+  }
+}
+
+/* ---- Compact top/bottom chrome on landscape phones & tablets ----
+ * Keeps the HUD and footer to a single slim row each so the battlefield
+ * gets the vertical space instead of the surrounding bars. The footer stays
+ * pinned (sticky) so START WAVE is always reachable. */
+@media (orientation: landscape) and (max-height: 700px) {
+  #app {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  #ui {
+    padding: 4px 8px;
+    gap: 6px;
+    border-width: 2px;
+  }
+
+  .hud-left,
+  .hud-right {
+    gap: 5px;
+  }
+
+  .hud-pill {
+    padding: 3px 8px;
+    font-size: 12px;
+    gap: 4px;
+    border-width: 2px;
+  }
+
+  .speed-group {
+    gap: 3px;
+  }
+
+  .btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  /* Footer hidden by default; toggle reveals it. Actions float bottom-right. */
+  #bottom-area {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  #bottombar {
+    display: none;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(255, 248, 231, 0.96);
+    border: 2px solid #2b2440;
+    border-radius: 12px;
+  }
+
+  #bottom-area.footer-open #bottombar {
+    display: flex;
+  }
+
+  #status-text {
+    order: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bottom-left {
+    order: 1;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  /* START WAVE + footer toggle float above the footer, bottom-right. */
+  #bottom-actions {
+    position: absolute;
+    right: 8px;
+    bottom: 100%;
+    margin-bottom: 6px;
+    gap: 6px;
+    z-index: 7;
+  }
+
+  #btn-start-wave {
+    padding: 6px 12px;
+    font-size: 13px;
+    box-shadow: 0 3px 0 #2b2440;
+  }
+
+  #btn-footer-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 9px;
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .creator-badge {
+    padding: 3px 8px;
+    font-size: 11px;
+    box-shadow: 0 2px 0 #2b2440;
+  }
+
+  .creator-badge__icon {
+    font-size: 12px;
+  }
+
+  .visitor-counter {
+    padding: 3px 8px;
+    font-size: 11px;
+    box-shadow: 0 2px 0 #2b2440;
+  }
+}
+
+/* ---- Compact top/bottom chrome on portrait phones ---- */
+@media (max-width: 760px) and (orientation: portrait) {
+  #app {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  #ui {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+
+  .hud-left,
+  .hud-right {
+    gap: 5px;
+  }
+
+  .hud-pill {
+    padding: 4px 9px;
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  .btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  /* Footer hidden by default; toggle reveals it. Actions float bottom-right. */
+  #bottom-area {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  #bottombar {
+    display: none;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    padding: 5px 8px;
+    background: rgba(255, 248, 231, 0.96);
+    border: 2px solid #2b2440;
+    border-radius: 12px;
+  }
+
+  #bottom-area.footer-open #bottombar {
+    display: flex;
+  }
+
+  /* START WAVE + footer toggle float above the footer, bottom-right. */
+  #bottom-actions {
+    position: absolute;
+    right: 8px;
+    bottom: 100%;
+    margin-bottom: 6px;
+    gap: 6px;
+    z-index: 7;
+  }
+
+  #btn-start-wave {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  #btn-footer-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 9px;
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  #status-text {
+    font-size: 10.5px;
+  }
+
+  .bottom-left {
+    gap: 4px;
+  }
+
+  .creator-badge {
+    padding: 3px 7px;
+    font-size: 11px;
+    box-shadow: 0 2px 0 #2b2440;
+  }
+
+  .creator-badge__icon {
+    font-size: 12px;
+  }
+
+  .creator-badge__label {
+    display: none;
+  }
+
+  .visitor-counter {
+    padding: 3px 7px;
+    font-size: 11px;
+    box-shadow: 0 2px 0 #2b2440;
   }
 }

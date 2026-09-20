@@ -167,6 +167,7 @@ async function boot(): Promise<void> {
         audio.play('click');
         panels.close();
         worldView.hideRange();
+        worldView.hideBuildConfirm();
         if (st === GameStatus.MENU) {
           hud.showMenu(false);
           return;
@@ -214,6 +215,9 @@ async function boot(): Promise<void> {
   const panels = new Panels(panelSlot, game, audio, {
     showRange: (x, y, r) => worldView.showRange(x, y, r),
     hideRange: () => worldView.hideRange(),
+    showBuildConfirm: (x, y, info, onConfirm, onCancel) =>
+      worldView.showBuildConfirm(x, y, info, onConfirm, onCancel),
+    hideBuildConfirm: () => worldView.hideBuildConfirm(),
   });
   panels.bindKeyboard({
     onTogglePause: () => togglePause(),
@@ -264,6 +268,9 @@ async function boot(): Promise<void> {
     if (e.button !== 0) return;
     if (renderer.wasDrag()) return;
     if (game.state.status === GameStatus.MENU) return;
+    // Don't let canvas-level slot picking fire while the build-confirm
+    // popup buttons are active — a tap on ✓/✕ would also resolve to a slot.
+    if (worldView.hasBuildConfirm()) return;
 
     const rect = renderer.app.canvas.getBoundingClientRect();
     const { x, y } = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
@@ -381,6 +388,7 @@ async function boot(): Promise<void> {
     const tower = payload as { x: number; y: number; refund: number };
     worldView.refreshSlots();
     worldView.hideRange();
+    worldView.hideBuildConfirm();
     effects.gold(tower.x, tower.y, tower.refund);
     panels.refresh();
   });
@@ -397,6 +405,7 @@ async function boot(): Promise<void> {
     const tower = payload as { x: number; y: number };
     worldView.refreshSlots();
     worldView.hideRange();
+    worldView.hideBuildConfirm();
     effects.deathPop(tower.x, tower.y, 0x9ca3af);
     audio.play('explosion');
     panels.refresh();
@@ -415,6 +424,7 @@ async function boot(): Promise<void> {
     const s = game.state;
     panels.close();
     worldView.hideRange();
+    worldView.hideBuildConfirm();
     const stats = {
       wave: s.wave,
       kills: s.totalKills,
@@ -458,6 +468,7 @@ async function boot(): Promise<void> {
     prevProjectiles.clear();
     worldView.refreshSlots();
     worldView.hideRange();
+    worldView.hideBuildConfirm();
     panels.close();
     hud.setHighestWave(game.bestWave);
   }
@@ -591,6 +602,7 @@ async function boot(): Promise<void> {
       debugEl.textContent =
         `FPS ${fps} | enemies ${alive} | towers ${state.towers.length} | ` +
         `projectiles ${state.projectiles.length} | wave ${state.wave} | t ${state.time.toFixed(1)}s\n` +
+        `zoom ${renderer.getZoom().toFixed(2)} | ` +
         `F1 spawn • F2 +gold • F3 overlay • F4 skip wave • F5 kill all`;
     }
   });
