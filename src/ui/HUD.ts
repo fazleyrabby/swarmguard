@@ -329,12 +329,13 @@ export class HUD {
        <div class="game-subtitle">${inGame ? 'Paused — pick a map, challenge or settings' : 'Defend the Core'}</div>
        <div class="menu-best">Highest wave: <strong>${this.highestWave}</strong> &nbsp;💎 <strong>${this.callbacks.getGems()}</strong> &nbsp;★ <strong>${this.callbacks.getTotalStars()}</strong></div>
        ${picker}
+       <div class="hint-line">★ per map: win · ★★ keep ≥50% Core · ★★★ untouched</div>
        ${challenges}
        ${primary}
        <button class="btn" data-action="talents">✨ TALENTS</button>
        <button class="btn" data-action="achievements">🏆 ACHIEVEMENTS</button>
        <button class="btn" data-action="settings">⚙ SETTINGS</button>
-       <div class="menu-hint">Click a glowing pad to build • click a tower to upgrade • Space pauses</div>`,
+       <div class="menu-hint">Earn 💎 from runs to buy permanent ✨ Talents • Space pauses</div>`,
     );
     card.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -400,6 +401,7 @@ export class HUD {
       'talents',
       `<h2>✨ Talents</h2>
        <div class="menu-best">💎 <strong>${this.callbacks.getGems()}</strong> gems &nbsp;•&nbsp; ★ <strong>${this.callbacks.getTotalStars()}</strong> stars</div>
+       <div class="talent-intro">Earn 💎 by finishing runs (more for stars). Talents are <strong>permanent</strong> and boost every future run.</div>
        <div class="talent-list">${rows}</div>
        <button class="btn btn-primary" data-action="back">↩ BACK</button>`,
     );
@@ -534,7 +536,8 @@ export class HUD {
     const stars = '★'.repeat(stats.stars) + '☆'.repeat(Math.max(0, stats.maxStars - stats.stars));
     const best = stats.newBest ? ' <em class="result-best">new best!</em>' : '';
     return `<div class="result-stars" title="${stats.stars}/${stats.maxStars} stars">${stars}</div>
-      <div class="result-gems">+${stats.gemsEarned} 💎${best} <span class="result-total">(total 💎 ${stats.totalGems})</span></div>`;
+      <div class="result-gems">+${stats.gemsEarned} 💎${best} <span class="result-total">(total 💎 ${stats.totalGems})</span></div>
+      <div class="result-hint">Spend 💎 on ✨ Talents from the menu</div>`;
   }
 
   showGameOver(stats: EndOfGameStats): void {
