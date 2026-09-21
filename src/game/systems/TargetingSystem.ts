@@ -3,7 +3,7 @@
  * Default mode is "first" (furthest along the path). Simple distance checks;
  * structured so a spatial grid can slot in later without changing callers.
  */
-import { getTowerLevel } from '../../config/towers';
+import { getTowerLevel, TOWERS } from '../../config/towers';
 import type { Enemy, Tower, TargetingMode } from '../entities';
 import type { GameState } from '../GameState';
 import { applyRange } from '../profile';
@@ -107,6 +107,10 @@ function findEnemy(enemies: Enemy[], id: number): Enemy | undefined {
 export function updateTargets(state: GameState): void {
   for (const tower of state.towers) {
     const stats = getTowerLevel(tower.type, tower.level, tower.branch);
+    if (TOWERS[tower.type].projectile === 'none') {
+      tower.targetId = undefined;
+      continue;
+    }
     const range = applyRange(stats.range, state.mods);
     let target: Enemy | undefined;
     if (tower.targetId !== undefined) {

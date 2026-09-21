@@ -19,6 +19,12 @@ export interface BuildConfirmInfo {
   damage: number;
   range: number;
   splashRadius?: number;
+  /** For support towers (War Drums) — the aura radius to display. */
+  auraRadius?: number;
+  /** For poison towers (Alchemist) — DPS applied per second. */
+  poisonDps?: number;
+  /** For poison towers — duration of each dose in seconds. */
+  poisonDuration?: number;
 }
 
 export interface PanelHooks {
@@ -115,7 +121,9 @@ export class Panels {
     this.openSlotId = null;
     this.audio.play('click');
     const stats = getTowerLevel(tower.type, tower.level, tower.branch);
-    this.hooks.showRange(tower.x, tower.y, this.rng(stats.range));
+    const isSupport = TOWERS[tower.type].projectile === 'none';
+    const displayRange = isSupport ? stats.auraRadius ?? stats.range : stats.range;
+    this.hooks.showRange(tower.x, tower.y, this.rng(displayRange));
     this.render();
   }
 
@@ -231,6 +239,8 @@ export class Panels {
       const level = def.levels[0];
       const cost = this.price(def.cost);
       const affordable = state.gold >= cost;
+      const isSupport = def.projectile === 'none';
+      const displayRange = isSupport ? level.auraRadius ?? level.range : level.range;
       const card = document.createElement('button');
       card.className = 'tower-option';
       card.disabled = !affordable;
@@ -238,22 +248,26 @@ export class Panels {
       card.innerHTML =
         `<span class="tower-name">${def.icon} ${def.name}</span>` +
         `<span class="tower-cost">💰 ${cost}</span>`;
-      card.title = `${def.description} (DMG ${this.dmg(level.damage)}, RNG ${this.rng(level.range)})`;
-      // Hovering a card previews that tower's range from the slot.
+      card.title = `${def.description} (DMG ${this.dmg(level.damage)}, RNG ${this.rng(displayRange)})`;
       card.addEventListener('pointerenter', () => {
-        if (slot) this.hooks.showRange(slot.x, slot.y, this.rng(level.range));
+        if (slot) this.hooks.showRange(slot.x, slot.y, this.rng(displayRange));
       });
       card.addEventListener('pointerleave', () => this.hooks.hideRange());
       card.addEventListener('click', () => {
-        // Touch has no hover: show the range on tap before the ✓/✕ confirm.
         if (this.touchUI && slot) {
-          this.hooks.showRange(slot.x, slot.y, this.rng(level.range));
+          this.hooks.showRange(slot.x, slot.y, this.rng(displayRange));
         }
         this.doBuild(slotId, id, card);
       });
       const sub = document.createElement('small');
       sub.className = 'tower-sub';
-      sub.textContent = `DMG ${this.dmg(level.damage)} • RNG ${this.rng(level.range)}${level.splashRadius ? ` • AoE ${level.splashRadius}` : ''}`;
+      if (isSupport) {
+        sub.textContent = `AURA ${this.rng(displayRange)} • +${Math.round((level.attackSpeedBonus ?? 0) * 100)}% speed${level.damageBonus ? ` • +${Math.round(level.damageBonus * 100)}% dmg` : ''}`;
+      } else if (level.poisonDamagePerSec) {
+        sub.textContent = `DMG ${this.dmg(level.damage)} • RNG ${this.rng(level.range)} • POISON ${level.poisonDamagePerSec}/s`;
+      } else {
+        sub.textContent = `DMG ${this.dmg(level.damage)} • RNG ${this.rng(displayRange)}${level.splashRadius ? ` • AoE ${level.splashRadius}` : ''}`;
+      }
       card.appendChild(sub);
       wrap.appendChild(card);
     }
@@ -273,13 +287,17 @@ export class Panels {
       return;
     }
     const level = def.levels[0];
+    const isSupport = def.projectile === 'none';
     const info: BuildConfirmInfo = {
       icon: def.icon,
       name: def.name,
       cost: this.price(def.cost),
       damage: this.dmg(level.damage),
-      range: this.rng(level.range),
+      range: this.rng(isSupport ? level.auraRadius ?? level.range : level.range),
       splashRadius: level.splashRadius,
+      auraRadius: isSupport ? (level.auraRadius ?? undefined) : undefined,
+      poisonDps: level.poisonDamagePerSec,
+      poisonDuration: level.poisonDuration,
     };
     const slot = this.game.state.buildSlots.find((s) => s.id === slotId);
 
@@ -325,10 +343,12 @@ export class Panels {
     wrap.className = 'panel';
     const def = TOWERS[tower.type];
     const stats = getTowerLevel(tower.type, tower.level, tower.branch);
+    const isSupport = def.projectile === 'none';
+    const displayRange = isSupport ? stats.auraRadius ?? stats.range : stats.range;
     const maxed = isMaxLevel(tower.type, tower.level);
     const cost = upgradeCostFor(tower.type, tower.level, tower.branch);
     const price = cost === undefined ? undefined : this.price(cost);
-    const attackPerSec = stats.attackSpeed.toFixed(2).replace(/\.?0+$/, '');
+    const attackPerSec = stats.attackSpeed > 0 ? `${stats.attackSpeed.toFixed(2).replace(/\.?0+$/, '')}/s` : '—';
     const branch = tower.branch ? def.branches?.find((b) => b.id === tower.branch) : undefined;
 
     const title = document.createElement('h2');
@@ -344,14 +364,24 @@ export class Panels {
     statsEl.className = 'stat-list';
     let rows =
       `<div class="stat-row"><span>Damage</span><strong>${this.dmg(stats.damage)}</strong></div>` +
-      `<div class="stat-row"><span>Range</span><strong>${this.rng(stats.range)}</strong></div>` +
-      `<div class="stat-row"><span>Attack</span><strong>${attackPerSec}/s</strong></div>` +
-      `<div class="stat-row" data-hull><span>Hull</span><strong>${tower.hp}/${tower.maxHp}</strong></div>`;
+      `<div class="stat-row"><span>Range</span><strong>${this.rng(displayRange)}</strong></div>`;
+    if (isSupport) {
+      rows += `<div class="stat-row"><span>Attack</span><strong>${attackPerSec}</strong></div>`;
+      if (stats.auraRadius) rows += `<div class="stat-row"><span>Aura</span><strong>${this.rng(stats.auraRadius)}</strong></div>`;
+      if (stats.attackSpeedBonus) rows += `<div class="stat-row"><span>Speed Bonus</span><strong>+${Math.round(stats.attackSpeedBonus * 100)}%</strong></div>`;
+      if (stats.damageBonus) rows += `<div class="stat-row"><span>Dmg Bonus</span><strong>+${Math.round(stats.damageBonus * 100)}%</strong></div>`;
+    } else {
+      rows += `<div class="stat-row"><span>Attack</span><strong>${attackPerSec}</strong></div>`;
+    }
+    rows += `<div class="stat-row" data-hull><span>Hull</span><strong>${tower.hp}/${tower.maxHp}</strong></div>`;
     if (stats.splashRadius) {
       rows += `<div class="stat-row"><span>Splash</span><strong>${stats.splashRadius}</strong></div>`;
     }
     if (stats.slowFactor) {
       rows += `<div class="stat-row"><span>Slow</span><strong>${Math.round(stats.slowFactor * 100)}% / ${stats.slowDuration}s</strong></div>`;
+    }
+    if (stats.poisonDamagePerSec) {
+      rows += `<div class="stat-row"><span>Poison</span><strong>${stats.poisonDamagePerSec}/s x ${stats.poisonDuration}s</strong></div>`;
     }
     statsEl.innerHTML = rows;
     wrap.appendChild(statsEl);
@@ -382,8 +412,8 @@ export class Panels {
           `DMG ${this.dmg(tier.damage)} • RNG ${this.rng(tier.range)} • ${tier.attackSpeed}/s` +
           (tier.splashRadius ? ` • AoE ${tier.splashRadius}` : '');
         btn.appendChild(sub);
-        btn.addEventListener('pointerenter', () => this.hooks.showRange(tower.x, tower.y, this.rng(tier.range)));
-        btn.addEventListener('pointerleave', () => this.hooks.showRange(tower.x, tower.y, this.rng(stats.range)));
+         btn.addEventListener('pointerenter', () => this.hooks.showRange(tower.x, tower.y, this.rng(isSupport ? tier.auraRadius ?? tier.range : tier.range)));
+         btn.addEventListener('pointerleave', () => this.hooks.showRange(tower.x, tower.y, this.rng(displayRange)));
         btn.addEventListener('click', () => {
           if (!this.game.upgradeTower(tower.id, br.id)) this.audio.play('error');
           this.refresh();
@@ -396,9 +426,9 @@ export class Panels {
       up.className = 'btn btn-accent btn-block';
       up.disabled = state.gold < price;
       up.dataset.cost = String(price);
-      up.innerHTML = `⬆ Upgrade → <strong>💰 ${price}</strong><small>DMG ${this.dmg(next.damage)} • RNG ${this.rng(next.range)}</small>`;
-      up.addEventListener('pointerenter', () => this.hooks.showRange(tower.x, tower.y, this.rng(next.range)));
-      up.addEventListener('pointerleave', () => this.hooks.showRange(tower.x, tower.y, this.rng(stats.range)));
+      up.innerHTML = `⬆ Upgrade → <strong>💰 ${price}</strong><small>DMG ${this.dmg(next.damage)} • RNG ${this.rng(isSupport ? next.auraRadius ?? next.range : next.range)}</small>`;
+      up.addEventListener('pointerenter', () => this.hooks.showRange(tower.x, tower.y, this.rng(isSupport ? next.auraRadius ?? next.range : next.range)));
+      up.addEventListener('pointerleave', () => this.hooks.showRange(tower.x, tower.y, this.rng(displayRange)));
       up.addEventListener('click', () => {
         const ok = this.game.upgradeTower(tower.id);
         if (!ok) {
@@ -407,7 +437,8 @@ export class Panels {
           const t = this.game.state.towers.find((x) => x.id === tower.id);
           if (t) {
             const s = getTowerLevel(t.type, t.level, t.branch);
-            this.hooks.showRange(t.x, t.y, this.rng(s.range));
+            const isSup = TOWERS[t.type].projectile === 'none';
+            this.hooks.showRange(t.x, t.y, this.rng(isSup ? s.auraRadius ?? s.range : s.range));
           }
         }
         this.refresh();

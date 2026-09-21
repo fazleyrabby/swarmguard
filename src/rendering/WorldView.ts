@@ -73,6 +73,7 @@ export class WorldView {
   private lastHpFrac = -1;
   private glowCache: PIXI.Texture | null = null;
   private vignetteCache: PIXI.Texture | null = null;
+  private softShadowCache: PIXI.Texture | null = null;
 
   /** In-game build confirmation popup (replaces native window.confirm). */
   private confirmPopup: PIXI.Container | null = null;
@@ -90,6 +91,52 @@ export class WorldView {
     ctx.fillRect(0, 0, 256, 160);
     this.vignetteCache = PIXI.Texture.from(canvas);
     return this.vignetteCache;
+  }
+
+  /** Soft radial contact shadow (canvas gradient) for grounded set pieces. */
+  private softShadowTexture(): PIXI.Texture {
+    if (this.softShadowCache) return this.softShadowCache;
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+    grad.addColorStop(0, 'rgba(16,24,12,0.6)');
+    grad.addColorStop(0.5, 'rgba(16,24,12,0.28)');
+    grad.addColorStop(0.82, 'rgba(16,24,12,0.07)');
+    grad.addColorStop(1, 'rgba(16,24,12,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+    this.softShadowCache = PIXI.Texture.from(canvas);
+    return this.softShadowCache;
+  }
+
+  private softShadowSprite(x: number, y: number, w: number, h: number, alpha = 0.95): PIXI.Sprite {
+    const s = new PIXI.Sprite(this.softShadowTexture());
+    s.anchor.set(0.5);
+    s.position.set(x, y);
+    s.width = w;
+    s.height = h;
+    s.alpha = alpha;
+    s.eventMode = 'none';
+    return s;
+  }
+
+  /** Vertical linear-gradient sprite (top -> bottom) from CSS color stops. */
+  private linearTexture(stops: [number, string][], horizontal = false): PIXI.Texture {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const grad = horizontal
+      ? ctx.createLinearGradient(0, 0, size, 0)
+      : ctx.createLinearGradient(0, 0, 0, size);
+    for (const [pos, color] of stops) grad.addColorStop(pos, color);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+    return PIXI.Texture.from(canvas);
   }
 
   constructor(renderer: Renderer, game: Game, def: MapDefinition = DEFAULT_MAP) {
@@ -283,6 +330,9 @@ export class WorldView {
     this.drawPath(L.map, this.def.path);
     this.drawDecorations(L.map, this.def);
     this.drawBase(L.map, this.def.base);
+    // Atmosphere sits over the ground/decor but under units + slots, so the
+    // battlefield recedes into the distance without muddying the actors.
+    this.drawAtmosphere(L.map);
     this.drawSlots(L.buildSlot, this.def.buildSlots);
     L.overlay.addChild(this.rangeG);
     // Soft vignette over the whole world: focus pull to the battlefield.
@@ -395,6 +445,20 @@ export class WorldView {
     }
     layer.addChild(tufts);
 
+    // Ground-plane falloff: light pools toward the far edge, warms near the
+    // camera — a soft vertical grade that sells the tilted diorama.
+    const shade = new PIXI.Sprite(
+      this.linearTexture([
+        [0, 'rgba(255,255,255,0.12)'],
+        [0.5, 'rgba(255,255,255,0)'],
+        [1, 'rgba(28,18,8,0.12)'],
+      ]),
+    );
+    shade.eventMode = 'none';
+    shade.width = W;
+    shade.height = H;
+    layer.addChild(shade);
+
     const frame = new PIXI.Graphics();
     frame.eventMode = 'none';
     frame.rect(0, 0, W, H).stroke({ width: 18, color: th.frame });
@@ -492,9 +556,9 @@ export class WorldView {
     });
 
     place(14, 62, (x, y, r) => {
+      layer.addChild(this.softShadowSprite(x + 8, y + 20, 132, 56, 0.9));
       const t = new PIXI.Graphics();
       t.eventMode = 'none';
-      t.ellipse(x, y + 20, 26, 9).fill({ color: 0x3f6b28, alpha: 0.3 });
       t.rect(x - 5, y - 2, 10, 24).fill({ color: 0x8a5a3b });
       t.circle(x - 10, y - 12, 20).fill({ color: 0x3e9e4f });
       t.circle(x + 12, y - 16, 24).fill({ color: 0x46b15a });
@@ -512,7 +576,7 @@ export class WorldView {
       const rock = new PIXI.Graphics();
       rock.eventMode = 'none';
       const s = 14 + r * 14;
-      rock.ellipse(x, y + s * 0.5, s * 1.1, s * 0.35).fill({ color: 0x3f6b28, alpha: 0.3 });
+      layer.addChild(this.softShadowSprite(x + s * 0.3, y + s * 0.55, s * 3, s * 1.1, 0.85));
       rock.roundRect(x - s, y - s * 0.7, s * 2, s * 1.4, s * 0.55).fill({ color: 0xb8c0cc });
       rock.roundRect(x - s, y - s * 0.7, s * 2, s * 1.4, s * 0.55).stroke({ width: 3, color: 0x8f99a8 });
       rock.ellipse(x - s * 0.3, y - s * 0.25, s * 0.5, s * 0.28).fill({ color: 0xd7dde6 });
@@ -637,10 +701,13 @@ export class WorldView {
     this.baseGlowB.width = base.radius * 5.6;
     this.baseGlowB.height = base.radius * 5.6;
     root.addChild(this.baseGlowA, this.baseGlowB);
+    // Soft cast shadow before the stone platform (grounds the keep).
+    root.addChild(
+      this.softShadowSprite(10, base.radius * 0.9 + 16, base.radius * 3.9, base.radius * 1.6, 0.95),
+    );
 
     const g = new PIXI.Graphics();
-    // Courtyard shadow + stone platform.
-    g.ellipse(0, base.radius * 0.9, base.radius * 1.35, base.radius * 0.42).fill({ color: 0x3f6b28, alpha: 0.35 });
+    // Stone platform.
     g.roundRect(-base.radius - 16, -base.radius - 8, (base.radius + 16) * 2, (base.radius + 8) * 2, 26).fill({ color: 0xe8e4da });
     g.roundRect(-base.radius - 16, -base.radius - 8, (base.radius + 16) * 2, (base.radius + 8) * 2, 26).stroke({ width: 5, color: 0x9a917f });
     // Courtyard cobble seams.
@@ -716,6 +783,39 @@ export class WorldView {
     this.lastHpFrac = -1;
   }
 
+  /**
+   * Depth + light grade (2.5D): cool haze thickens toward the top of the
+   * playfield (distance), while a warm key light washes in from the upper-left
+   * to match every sprite's baked lighting direction.
+   */
+  private drawAtmosphere(layer: PIXI.Container): void {
+    const W = this.def.world.width;
+    const H = this.def.world.height;
+
+    const haze = new PIXI.Sprite(
+      this.linearTexture([
+        [0, 'rgba(206,222,246,0.34)'],
+        [0.4, 'rgba(206,222,246,0.12)'],
+        [1, 'rgba(206,222,246,0)'],
+      ]),
+    );
+    haze.eventMode = 'none';
+    haze.width = W;
+    haze.height = H;
+    layer.addChild(haze);
+
+    const sun = new PIXI.Sprite(this.glowTexture());
+    sun.eventMode = 'none';
+    sun.tint = 0xfff2c4;
+    sun.anchor.set(0.5);
+    sun.width = W * 1.5;
+    sun.height = W * 1.5;
+    sun.position.set(W * 0.16, H * 0.08);
+    sun.alpha = 0.16;
+    sun.blendMode = 'add';
+    layer.addChild(sun);
+  }
+
   private drawSlots(layer: PIXI.Container, slots: MapDefinition['buildSlots']): void {
     for (const s of slots) {
       const root = new PIXI.Container();
@@ -769,8 +869,12 @@ export class WorldView {
     const r = 18;
     g.ellipse(0, h / 2 - 2, w / 2, 12).fill({ color: 0x3f6b28, alpha: 0.3 });
     if (s.occupied) {
-      g.roundRect(-w / 2, -h / 2, w, h, r).fill({ color: 0xd9c9a3, alpha: 0.9 });
-      g.roundRect(-w / 2, -h / 2, w, h, r).stroke({ width: 4, color: 0x8a6d3b });
+      // Occupied slots become an elliptical stone dais so the tower's own 2.5D
+      // drum is the focal point (a flat square plate read as a ceramic tile).
+      g.ellipse(0, 16, 44, 16).fill({ color: 0x000000, alpha: 0.13 });
+      g.ellipse(0, 13, 41, 15).fill({ color: 0xd9cfb8 });
+      g.ellipse(0, 13, 41, 15).stroke({ width: 4, color: 0x8a7f63 });
+      g.ellipse(0, 9, 31, 10).fill({ color: 0xe8e0cf, alpha: 0.7 });
       s.label.visible = false;
       return;
     }

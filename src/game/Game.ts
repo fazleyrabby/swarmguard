@@ -22,9 +22,11 @@ import { GameStatus, createInitialState, isGameOver, type GameState } from './Ga
 import { applyCost, NEUTRAL_MODIFIERS, type RunModifiers } from './profile';
 import { mulberry32, type Rng } from './rng';
 import { applyProjectileHit, updateCombat } from './systems/CombatSystem';
+import { applyPoison, recalculateAuras as recalculateTowerAuras, updateAbilities } from './systems/AbilitySystem';
 import {
   addGold,
   canAfford,
+  grantEfficiencyBonus,
   grantWaveReward,
   spendGold,
 } from './systems/EconomySystem';
@@ -42,7 +44,6 @@ import {
   upgradeCostFor,
 } from './systems/UpgradeSystem';
 import { buildSpawnQueue, generateBossRushWave, generateWave } from './systems/WaveGenerator';
-import { updateAbilities } from './systems/AbilitySystem';
 import { updateEnemyAttacks } from './systems/EnemyAttackSystem';
 
 /**
@@ -54,7 +55,9 @@ const TOWER_DEFAULT_TARGETING: Record<TowerId, TargetingMode> = {
   cannon: 'first',
   bomb: 'first',
   frost: 'first',
+  alchemist: 'first',
   sniper: 'strongest',
+  'war-drums': 'first',
 };
 export const BEST_WAVE_KEY = 'swarmguard:highestWave';
 export const VICTORY_WAVE = FINAL_MVP_WAVE;
@@ -128,6 +131,7 @@ export class Game {
     s.wave = def.wave;
     s.killsThisWave = 0;
     s.goldThisWave = 0;
+    s.goldAtWaveStart = s.gold;
     initWaveSpawning(s, def, buildSpawnQueue(def, s.seed));
     if (ch.enemyHpMult) s.waveHpMult *= ch.enemyHpMult;
     if (ch.enemySpeedMult) s.waveSpeedMult *= ch.enemySpeedMult;
@@ -159,6 +163,7 @@ export class Game {
     updateAbilities(s, dt, this.events);
     updateEnemyAttacks(s, dt, this.events);
     updateMovement(s, dt, this.events);
+    applyPoison(s, dt, this.events);
     if (isGameOver(s)) {
       this.saveBestWave();
       return;
@@ -188,11 +193,13 @@ export class Game {
     if (s.enemies.some((e) => e.alive)) return;
 
     const reward = grantWaveReward(s, s.wave, this.events);
+    const efficiencyBonus = grantEfficiencyBonus(s, this.events);
     this.events.emit('wave:completed', {
       wave: s.wave,
       kills: s.killsThisWave,
       goldEarned: s.goldThisWave,
       reward,
+      efficiencyBonus,
     });
 
     if (s.wave >= VICTORY_WAVE && s.challenge.id !== 'endless') {
@@ -239,6 +246,7 @@ export class Game {
     slot.occupied = true;
     slot.towerId = tower.id;
     this.events.emit('tower:built', tower);
+    this.recalculateAuras();
     return tower;
   }
 
@@ -261,6 +269,7 @@ export class Game {
     tower.hp = Math.min(maxHp, tower.hp + Math.max(0, maxHp - tower.maxHp));
     tower.maxHp = maxHp;
     this.events.emit('tower:upgraded', tower);
+    this.recalculateAuras();
     return true;
   }
 
@@ -287,6 +296,9 @@ export class Game {
     const idx = s.towers.findIndex((t) => t.id === towerId);
     if (idx === -1) return 0;
     const tower = s.towers[idx];
+    if (tower.auraSourceTowerId === undefined && !s.towers.some((t) => t.auraSourceTowerId === tower.id)) {
+      // no-op: handled by recalc below
+    }
     const refund = sellRefundFor(tower.type, tower.level, tower.branch);
     s.towers.splice(idx, 1);
     const slot = s.buildSlots.find((b) => b.towerId === towerId);
@@ -297,7 +309,13 @@ export class Game {
     if (s.selectedTowerId === towerId) s.selectedTowerId = undefined;
     addGold(s, refund, this.events);
     this.events.emit('tower:sold', { ...tower, refund });
+    this.recalculateAuras();
     return refund;
+  }
+
+  /** Recalculate all tower auras immediately (used after build/upgrade/sell). */
+  recalculateAuras(): void {
+    recalculateTowerAuras(this.state);
   }
 
   // ---- pause / speed (spec §36) ----

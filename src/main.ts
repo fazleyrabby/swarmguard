@@ -110,6 +110,8 @@ function toRenderState(game: Game): {
       branch: t.branch,
       hp: t.hp,
       maxHp: t.maxHp,
+      auraRadius: t.auraRadius,
+      buffed: t.auraSourceTowerId !== undefined,
     })),
     projectiles: s.projectiles.map((p) => ({
       id: p.id,
@@ -117,6 +119,7 @@ function toRenderState(game: Game): {
       x: p.x,
       y: p.y,
       angle: Math.atan2(p.vy, p.vx),
+      poison: p.poisonDamagePerSec !== undefined && p.poisonDamagePerSec > 0,
     })),
   };
 }
@@ -371,6 +374,9 @@ async function boot(): Promise<void> {
     } else if (tower.type === 'sniper') {
       effects.arrowSnap(tower.x, tower.y, tower.angle);
       audio.play('sniper-fire');
+    } else if (tower.type === 'alchemist') {
+      effects.muzzle(tower.x, tower.y, tower.angle, false);
+      audio.play('alchemist-fire');
     } else {
       effects.muzzle(tower.x, tower.y, tower.angle, false);
       audio.play('bomb-fire');
@@ -414,7 +420,7 @@ async function boot(): Promise<void> {
   });
 
   game.events.on('wave:completed', (payload) => {
-    const info = payload as { wave: number; kills: number; goldEarned: number; reward: number };
+    const info = payload as { wave: number; kills: number; goldEarned: number; reward: number; efficiencyBonus: number };
     hud.setHighestWave(game.bestWave);
     hud.showWaveComplete({ ...info, gold: info.goldEarned, totalGold: game.state.gold });
     audio.play('wave-complete');
@@ -655,7 +661,8 @@ async function boot(): Promise<void> {
     for (const [id, prev] of prevProjectiles) {
       if (!curProjectiles.has(id) && prev.splash > 0) {
         if (prev.kind === 'bomb') effects.bombBlast(prev.x, prev.y, prev.splash);
-        else if (prev.kind === 'frostshard') effects.frostBlast(prev.x, prev.y, prev.splash);
+         else if (prev.kind === 'frostshard') effects.frostBlast(prev.x, prev.y, prev.splash);
+        else if (prev.kind === 'vial') effects.poisonBurst(prev.x, prev.y);
         else effects.cannonBlast(prev.x, prev.y, prev.splash);
         audio.play('explosion');
       }

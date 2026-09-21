@@ -12,6 +12,7 @@ export const PROJECTILE_SPEEDS: Record<ProjectileKind, number> = {
   cannonball: 420,
   bomb: 380,
   frostshard: 520,
+  vial: 420,
   bullet: 950,
 };
 

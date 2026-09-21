@@ -10,9 +10,11 @@ import {
   getTowerLevel,
 } from '../../config/towers';
 import {
+  applyPoisonEffect,
   nextProjectileId,
   type Enemy,
   type Projectile,
+  type ProjectileKind,
 } from '../entities';
 import type { EventBus } from '../EventBus';
 import type { GameState } from '../GameState';
@@ -55,6 +57,7 @@ export function updateCombat(
 ): void {
   for (const tower of state.towers) {
     const stats = getTowerLevel(tower.type, tower.level, tower.branch);
+    if (TOWERS[tower.type].projectile === 'none') continue;
     const range = applyRange(stats.range, state.mods);
     tower.cooldown -= delta;
 
@@ -77,8 +80,14 @@ export function updateCombat(
     const dx = target.x - tower.x;
     const dy = target.y - tower.y;
     const dist = Math.hypot(dx, dy) || 1;
-    const kind = TOWERS[tower.type].projectile;
+    const kind = TOWERS[tower.type].projectile as ProjectileKind;
     const speed = PROJECTILE_SPEEDS[kind];
+    const attackSpeed =
+      stats.attackSpeed * (1 + (tower.auraAttackSpeedBonus ?? 0));
+    const damage =
+      applyDamage(stats.damage, state.mods) *
+      (state.challenge.towerDamageMult ?? 1) *
+      (1 + (tower.auraDamageBonus ?? 0));
     const projectile = pool.obtain({
       id: nextProjectileId(),
       kind,
@@ -87,18 +96,20 @@ export function updateCombat(
       vx: (dx / dist) * speed,
       vy: (dy / dist) * speed,
       targetId: target.id,
-      damage: applyDamage(stats.damage, state.mods) * (state.challenge.towerDamageMult ?? 1),
+      damage,
       speed,
       splashRadius: stats.splashRadius,
       slowFactor: stats.slowFactor,
       slowDuration: stats.slowDuration,
+      poisonDamagePerSec: stats.poisonDamagePerSec,
+      poisonDuration: stats.poisonDuration,
       sourceTowerId: tower.id,
       alive: true,
       age: 0,
       maxAge: 4,
     });
     state.projectiles.push(projectile);
-    tower.cooldown = 1 / stats.attackSpeed;
+    tower.cooldown = 1 / attackSpeed;
     tower.angle = Math.atan2(dy, dx);
     events.emit('tower:fired', { towerId: tower.id, targetId: target.id });
   }
@@ -177,6 +188,12 @@ export function applyProjectileHit(
   if (directHit && directHit.alive) {
     damageEnemy(state, directHit, projectile.damage, events);
     applySlow(directHit, projectile.slowFactor, projectile.slowDuration);
+    applyPoisonEffect(
+      directHit,
+      projectile.sourceTowerId,
+      projectile.poisonDamagePerSec ?? 0,
+      projectile.poisonDuration ?? 0,
+    );
   }
 
   if (radius > 0) {

@@ -92,6 +92,7 @@ export interface WaveCompleteStats {
   gold: number;
   reward: number;
   totalGold: number;
+  efficiencyBonus?: number;
 }
 
 function el<T extends HTMLElement>(id: string): T {
@@ -506,13 +507,17 @@ export class HUD {
     const card = this.mountCard(
       'wave-complete',
       `<div class="banner-title">✅ WAVE ${stats.wave} COMPLETE!</div>
-       <div class="stat-list">
-         <div class="stat-row"><span>Enemies defeated</span><strong>${stats.kills}</strong></div>
-         <div class="stat-row"><span>Gold earned</span><strong>+${stats.gold}</strong></div>
-         <div class="stat-row"><span>Wave reward</span><strong>+${stats.reward}</strong></div>
-         <div class="stat-row total"><span>Total gold</span><strong>💰 ${stats.totalGold}</strong></div>
-       </div>
-       <button class="btn btn-primary btn-big" data-action="continue">CONTINUE</button>`,
+        <div class="stat-list">
+          <div class="stat-row"><span>Enemies defeated</span><strong>${stats.kills}</strong></div>
+          <div class="stat-row"><span>Gold earned</span><strong>+${stats.gold}</strong></div>
+          <div class="stat-row"><span>Wave reward</span><strong>+${stats.reward}</strong></div>${
+            stats.efficiencyBonus
+              ? `<div class="stat-row"><span>Frugal Bonus</span><strong>+${stats.efficiencyBonus}g</strong></div>`
+              : ''
+          }
+          <div class="stat-row total"><span>Total gold</span><strong>💰 ${stats.totalGold}</strong></div>
+        </div>
+        <button class="btn btn-primary btn-big" data-action="continue">CONTINUE</button>`,
     );
     card.querySelector('[data-action="continue"]')?.addEventListener('click', () => {
       this.clearCard();
