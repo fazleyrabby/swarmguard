@@ -3,7 +3,8 @@
  * Data-driven: game systems must read from here, never hard-code.
  */
 
-export type TowerId = 'crossbow' | 'cannon' | 'bomb' | 'frost' | 'sniper';
+export type TowerId = 'crossbow' | 'cannon' | 'bomb' | 'frost' | 'alchemist' | 'sniper' | 'war-drums';
+export type TowerProjectileKind = 'arrow' | 'cannonball' | 'bomb' | 'frostshard' | 'vial' | 'bullet' | 'none';
 
 export interface TowerLevelStats {
   damage: number;
@@ -18,6 +19,16 @@ export interface TowerLevelStats {
   slowFactor?: number;
   /** Slow duration in seconds (bomb only). */
   slowDuration?: number;
+  /** Poison damage applied once per second while active. */
+  poisonDamagePerSec?: number;
+  /** Poison duration in seconds. */
+  poisonDuration?: number;
+  /** Radius of a support tower's aura. */
+  auraRadius?: number;
+  /** Attack-speed bonus granted by a support tower, 0–1. */
+  attackSpeedBonus?: number;
+  /** Damage bonus granted by a support tower, 0–1. */
+  damageBonus?: number;
 }
 
 /** A specialization chosen at `TowerDefinition.branchLevel`. */
@@ -41,7 +52,7 @@ export interface TowerDefinition {
   cost: number;
   /** Structural HP at level 1; spearmen and the like chew through this. */
   hp: number;
-  projectile: 'arrow' | 'cannonball' | 'bomb' | 'frostshard' | 'bullet';
+  projectile: TowerProjectileKind;
   description: string;
   levels: TowerLevelStats[];
   /** Level at which the player must pick one of `branches` to continue. */
@@ -212,6 +223,22 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
       { damage: 52, range: 200, attackSpeed: 1.0, splashRadius: 115, slowFactor: 0.45, slowDuration: 2.5, upgradeCost: 380 },
     ],
   },
+  alchemist: {
+    id: 'alchemist',
+    name: 'Alchemist',
+    icon: '🧪',
+    cost: 110,
+    hp: 180,
+    projectile: 'vial',
+    description: 'Coats enemies in poison that ticks over time. Stronger against slow, durable targets.',
+    levels: [
+      { damage: 12, range: 150, attackSpeed: 0.8, poisonDamagePerSec: 8, poisonDuration: 3, upgradeCost: 0 },
+      { damage: 18, range: 160, attackSpeed: 0.85, poisonDamagePerSec: 10, poisonDuration: 3, upgradeCost: 100 },
+      { damage: 26, range: 170, attackSpeed: 0.9, poisonDamagePerSec: 14, poisonDuration: 3, upgradeCost: 180 },
+      { damage: 36, range: 185, attackSpeed: 0.95, poisonDamagePerSec: 18, poisonDuration: 3.5, upgradeCost: 280 },
+      { damage: 50, range: 200, attackSpeed: 1.0, poisonDamagePerSec: 24, poisonDuration: 4, upgradeCost: 420 },
+    ],
+  },
   sniper: {
     id: 'sniper',
     name: 'Sniper',
@@ -228,9 +255,33 @@ export const TOWERS: Record<TowerId, TowerDefinition> = {
       { damage: 900, range: 500, attackSpeed: 0.56, upgradeCost: 600 },
     ],
   },
+  'war-drums': {
+    id: 'war-drums',
+    name: 'War Drums',
+    icon: '🥁',
+    cost: 130,
+    hp: 200,
+    projectile: 'none',
+    description: 'Support tower. Beats nearby towers faster and harder without firing.',
+    levels: [
+      { damage: 0, range: 0, attackSpeed: 0, auraRadius: 160, attackSpeedBonus: 0.1, damageBonus: 0, upgradeCost: 0 },
+      { damage: 0, range: 0, attackSpeed: 0, auraRadius: 170, attackSpeedBonus: 0.14, damageBonus: 0.05, upgradeCost: 110 },
+      { damage: 0, range: 0, attackSpeed: 0, auraRadius: 180, attackSpeedBonus: 0.18, damageBonus: 0.08, upgradeCost: 200 },
+      { damage: 0, range: 0, attackSpeed: 0, auraRadius: 190, attackSpeedBonus: 0.22, damageBonus: 0.12, upgradeCost: 300 },
+      { damage: 0, range: 0, attackSpeed: 0, auraRadius: 200, attackSpeedBonus: 0.25, damageBonus: 0.15, upgradeCost: 440 },
+    ],
+  },
 };
 
-export const TOWER_IDS: TowerId[] = ['crossbow', 'cannon', 'bomb', 'frost', 'sniper'];
+export const TOWER_IDS: TowerId[] = [
+  'crossbow',
+  'cannon',
+  'bomb',
+  'frost',
+  'alchemist',
+  'sniper',
+  'war-drums',
+];
 
 /** Max HP grows 25% per level above 1 (heavier towers stay tougher). */
 export const TOWER_HP_PER_LEVEL = 0.25;

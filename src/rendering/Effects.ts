@@ -304,6 +304,30 @@ export class Effects {
     }
   }
 
+  /** Alchemist impact: green poison cloud + particles + light shake. */
+  poisonBurst(x: number, y: number, radius = 34): void {
+    this.flash(x, y, radius * 0.7, 0x4ade80, 0.14);
+    this.ring(x, y, 10, radius * 1.3, 0x22c55e, 0.45);
+    const palette = [0x4ade80, 0x22c55e, 0x8b5cf6];
+    for (let i = 0; i < 14; i++) {
+      const p = this.spawn();
+      if (!p) return;
+      const a = Math.random() * Math.PI * 2;
+      const sp = radius * (0.9 + Math.random() * 1.6);
+      this.launch(p, {
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 80,
+        life: 0.35 + Math.random() * 0.4,
+        color: palette[i % palette.length],
+        scale: 0.6 + Math.random() * 0.7,
+        gravity: 420,
+        drag: 2,
+      });
+    }
+    if (this.shakeOn) this.onShake?.(0.15);
+  }
+
   /** Tower placement: rising ring + glow + sparkle (spec §41). */
   place(x: number, y: number): void {
     this.ring(x, y, 10, 70, 0x4ade80, 0.5);

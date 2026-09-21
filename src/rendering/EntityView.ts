@@ -13,6 +13,8 @@ export interface RenderEnemy {
   maxShield?: number;
   /** Total distance walked — drives distance-synced footsteps. */
   distanceTraveled?: number;
+  /** Active poison effects for the green overlay / tint. */
+  poisonEffects?: unknown[];
 }
 
 /** Structural tower view — `main.ts` maps sim towers via `toRenderState()`. */
@@ -26,6 +28,10 @@ export interface RenderTower {
   branch?: string;
   hp?: number;
   maxHp?: number;
+  /** Aura ring radius (War Drums source). */
+  auraRadius?: number;
+  /** Whether this tower is currently buffed by an aura source. */
+  buffed?: boolean;
 }
 
 export interface RenderProjectile {
@@ -34,6 +40,8 @@ export interface RenderProjectile {
   x: number;
   y: number;
   angle: number;
+  /** Only for Alchemist vials that explode into a poison cloud on expiry. */
+  poison?: boolean;
 }
 
 interface EnemyNode {
@@ -42,12 +50,14 @@ interface EnemyNode {
   body: PIXI.Sprite;
   flash: PIXI.Sprite;
   hpBar: PIXI.Graphics;
+  poison: PIXI.Sprite;
   phase: number;
   flashT: number;
   lastHp: number;
   lastHpFrac: number;
   lastHpVisible: boolean;
   lastHasShield: boolean;
+  lastPoisoned: boolean;
   type: string;
   textureName: string;
   /** Motion state. */
@@ -68,22 +78,32 @@ interface TowerNode {
   badge: PIXI.Text;
   pips: PIXI.Graphics;
   hpBar: PIXI.Graphics;
+  aura: PIXI.Graphics;
+  buff: PIXI.Graphics;
   angle: number;
   recoil: number;
   level: number;
   kind: string;
   branch?: string;
-  /** Placement grow 0.2→1, multiplied with hitPunch for the final scale. */
+  /** Placement grow 0.2->1, multiplied with hitPunch for the final scale. */
   baseScale: number;
   hitPunch: number;
   lastHpFrac: number;
   lastHpVisible: boolean;
+  lastAuraRadius: number;
+  lastBuffed: boolean;
 }
 
 interface ProjectileNode {
   sprite: PIXI.Sprite;
+  shadow: PIXI.Sprite;
   kind: string;
 }
+
+/** Soft baked ground shadows read at this fraction of their per-type scale. */
+const SOFT_SHADOW = 0.34;
+/** Weapon height above the tower origin — sits on the drum's top face. */
+const TOP_RISE = -14;
 
 function texKey(kind: string, prefix: string, fallback: string): string {
   switch (kind) {
@@ -98,15 +118,32 @@ function texKey(kind: string, prefix: string, fallback: string): string {
     case 'cannon':
     case 'bomb':
     case 'frost':
+    case 'alchemist':
+    case 'war-drums':
     case 'sniper':
     case 'arrow':
     case 'cannonball':
     case 'frostshard':
+    case 'vial':
     case 'bullet':
       return `${prefix}${kind}`;
     default:
       return fallback;
   }
+}
+
+/** Linear blend of two 0xRRGGBB colors (t=0 -> a, t=1 -> b). */
+function mixColor(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 0xff;
+  const ag = (a >> 8) & 0xff;
+  const ab = a & 0xff;
+  const br = (b >> 16) & 0xff;
+  const bg = (b >> 8) & 0xff;
+  const bb = b & 0xff;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (r << 16) | (g << 8) | bl;
 }
 
 function lerpAngle(a: number, b: number, t: number): number {
@@ -233,7 +270,7 @@ export class EntityView {
       this.tex.set(key, renderer.generateTexture(g));
       g.destroy();
     };
-    bake('shadow', this.shadowG());
+    this.softShadowTexture();
     bake('grunt', this.gruntG());
     bake('runner', this.runnerG());
     bake('tank', this.tankG());
@@ -252,15 +289,21 @@ export class EntityView {
     bake('tower-base-bomb', this.towerBaseG(0x2dd4bf, 0x0f766e));
     bake('tower-base-frost', this.towerBaseG(0x93c5fd, 0x1e40af));
     bake('tower-base-sniper', this.towerBaseG(0x6b7280, 0x1f2937));
+    bake('tower-base-alchemist', this.towerBaseG(0x7c3bed, 0x4b0082));
+    bake('tower-base-war-drums', this.towerBaseG(0xf59e0b, 0x92400e));
     bake('top-crossbow', this.crossbowTopG());
     bake('top-cannon', this.cannonTopG());
     bake('top-bomb', this.bombTopG());
     bake('top-frost', this.frostTopG());
     bake('top-sniper', this.sniperTopG());
+    bake('top-alchemist', this.alchemistTopG());
+    bake('top-war-drums', this.warDrumsTopG());
+    bake('poison-overlay', this.poisonOverlayG());
     bake('arrow', this.arrowG());
     bake('cannonball', this.cannonballG());
     bake('bomb', this.bombProjG());
     bake('frostshard', this.frostshardG());
+    bake('vial', this.vialG());
     bake('bullet', this.bulletG());
   }
 
@@ -320,7 +363,14 @@ export class EntityView {
       if (e.hp < n.lastHp) this.flashEnemy(e.id);
       n.lastHp = e.hp;
 
+      const poisoned = (e.poisonEffects ?? []).length > 0;
+      if (poisoned !== n.lastPoisoned) {
+        n.lastPoisoned = poisoned;
+        n.poison.alpha = poisoned ? 0.6 : 0;
+      }
+
       n.root.position.set(e.x, e.y);
+      n.root.zIndex = e.y; // 2.5D depth: lower on screen draws in front
 
       // --- Fluid motion layer (transform-only, distance-synced) ---
       // Footsteps advance with actual distance walked, so rhythm matches speed
@@ -343,11 +393,15 @@ export class EntityView {
       n.body.scale.set(vis.bodyScale * sx, vis.bodyScale * sy);
       n.flash.scale.set(vis.bodyScale * sx, vis.bodyScale * sy);
 
-      // Grounded shadow: body lifts on the hop, shadow stays put.
-      const lift = hop * vis.hop;
+      // Grounded shadow: body lifts on the hop, shadow stays put and tightens
+      // (smaller + fainter) as the creature rises — the core 2.5D depth cue.
+      const lift = hop * vis.hop * 1.7;
       n.body.position.y = -lift;
       n.flash.position.y = -lift;
-      n.shadow.scale.set(vis.shadowScale * (1 - hop * 0.12));
+      n.poison.position.y = -lift;
+      const shadowK = vis.shadowScale * SOFT_SHADOW * (1 - hop * 0.28);
+      n.shadow.scale.set(shadowK, shadowK * 0.62);
+      n.shadow.alpha = 0.95 - hop * 0.35;
 
       // Lean into travel direction (skew), smoothed.
       if (Number.isNaN(n.lastX)) {
@@ -358,9 +412,12 @@ export class EntityView {
       const vy = e.y - n.lastY;
       n.lastX = e.x;
       n.lastY = e.y;
-      const clampSkew = (v: number) => Math.max(-0.22, Math.min(0.22, v));
-      const targetSkewX = clampSkew(vx * 0.03 * (vis.lean / 0.1 || 1));
-      const targetSkewY = clampSkew(vy * 0.03 * (vis.lean / 0.1 || 1));
+      // Heavy units (lean 0) do not skew — a hulking boss sheared by its own
+      // velocity read as broken art, so the factor scales to zero with lean.
+      const leanK = vis.lean / 0.1;
+      const clampSkew = (v: number) => Math.max(-0.18, Math.min(0.18, v));
+      const targetSkewX = clampSkew(vx * 0.028 * leanK);
+      const targetSkewY = clampSkew(vy * 0.028 * leanK);
       const kS = Math.min(1, dt * 8);
       n.skewX += (targetSkewX - n.skewX) * kS;
       n.skewY += (targetSkewY - n.skewY) * kS;
@@ -436,29 +493,36 @@ export class EntityView {
     hpBar.eventMode = 'none';
     const shadow = pooled?.shadow ?? new PIXI.Sprite(this.tex.get('shadow'));
     shadow.anchor.set(0.5);
-    // Sun from upper-left: shadows fall down-right (per-type size).
-    shadow.position.set(4, vis.shadowY + 3);
-    shadow.scale.set(vis.shadowScale);
-    shadow.alpha = 0.9;
-    // Fresh nodes get their children mounted once; pooled nodes just ensure order.
+    // Sun from upper-left: soft cast shadow under the enemy.
+    shadow.position.set(3, vis.shadowY + 2);
+    const baseShadow = vis.shadowScale * SOFT_SHADOW;
+    shadow.scale.set(baseShadow, baseShadow * 0.62);
+    shadow.alpha = 0.95;
+    // Green poison overlay sprite, tinted over the body.
+    const poison = pooled?.poison ?? new PIXI.Sprite(this.tex.get('poison-overlay'));
+    poison.anchor.set(0.5);
+    poison.alpha = 0;
+    // Fresh nodes get children mounted once; pooled nodes ensure order.
     if (!pooled) {
-      root.addChild(shadow, body, flash, hpBar);
+      root.addChild(shadow, body, flash, poison, hpBar);
     } else {
       if (shadow.parent !== root) root.addChild(shadow);
       if (body.parent !== root) root.addChild(body);
       if (flash.parent !== root) root.addChild(flash);
+      if (poison.parent !== root) root.addChild(poison);
       if (hpBar.parent !== root) root.addChild(hpBar);
     }
     // HP bar geometry is per-type and must be reset even for pooled nodes.
     hpBar.position.set(-vis.barW / 2, vis.barY);
     return {
-      root, shadow, body, flash, hpBar,
+      root, shadow, body, flash, hpBar, poison,
       phase: Math.random() * Math.PI * 2,
       flashT: 0,
       lastHp: Number.POSITIVE_INFINITY,
       lastHpFrac: 1,
       lastHpVisible: false,
       lastHasShield: false,
+      lastPoisoned: false,
       type: vis.key,
       textureName: vis.texture,
       popScale: 0.2,
@@ -487,7 +551,11 @@ export class EntityView {
               ? 'frost'
               : t.kind === 'sniper'
                 ? 'sniper'
-                : 'crossbow';
+                : t.kind === 'alchemist'
+                  ? 'alchemist'
+                  : t.kind === 'war-drums'
+                    ? 'war-drums'
+                    : 'crossbow';
       let n = this.towers.get(t.id);
       if (!n) {
         n = this.makeTower(kind, t.level);
@@ -497,6 +565,7 @@ export class EntityView {
         n.root.scale.set(0.2); // placement bounce (Effects.place plays the glow)
       }
       n.root.position.set(t.x, t.y);
+      n.root.zIndex = t.y; // 2.5D depth sort
       if (n.baseScale < 1) {
         const s = Math.min(1, n.baseScale + dt * 4);
         n.baseScale = s >= 1 ? 1 : s < 0.8 ? s : 1 + (s - 0.8) * 0.5;
@@ -517,7 +586,23 @@ export class EntityView {
       n.recoil = Math.max(0, n.recoil - dt * 6);
       n.top.rotation = n.angle;
       const back = n.recoil * 7;
-      n.top.position.set(-Math.cos(n.angle) * back, -Math.sin(n.angle) * back);
+      // TOP_RISE keeps the weapon on the extruded drum's top face.
+      n.top.position.set(-Math.cos(n.angle) * back, TOP_RISE - Math.sin(n.angle) * back);
+
+      const auraRadius = t.auraRadius ?? 0;
+      const buffed = !!t.buffed;
+      if (auraRadius !== n.lastAuraRadius || buffed !== n.lastBuffed) {
+        n.lastAuraRadius = auraRadius;
+        n.lastBuffed = buffed;
+        n.aura.clear();
+        if (auraRadius > 0) {
+          n.aura.circle(0, 0, auraRadius).stroke({ width: 2, color: 0xf59e0b, alpha: 0.45 });
+        } else if (buffed) {
+          n.aura.circle(0, 0, 22).stroke({ width: 3, color: 0x4ade80, alpha: 0.8 });
+        }
+      }
+      n.aura.visible = n.lastAuraRadius > 0 || n.lastBuffed;
+      n.buff.visible = buffed && !n.lastAuraRadius;
       // Hull bar: only while damaged (healed towers hide it again).
       const frac =
         t.maxHp !== undefined && t.maxHp > 0 && t.hp !== undefined
@@ -551,9 +636,10 @@ export class EntityView {
     root.eventMode = 'none';
     const shadow = new PIXI.Sprite(this.tex.get('shadow'));
     shadow.anchor.set(0.5);
-    // Sun from upper-left: shadows fall down-right (ref: toon lighting).
-    shadow.position.set(4, 29);
-    shadow.scale.set(1.4);
+    // Sun from upper-left: soft cast shadow under the tower drum.
+    shadow.position.set(5, 17);
+    shadow.scale.set(1.15, 0.72);
+    shadow.alpha = 0.95;
     const base = new PIXI.Sprite(this.tex.get(texKey(kind, 'tower-base-', 'tower-base-crossbow')));
     base.anchor.set(0.5);
     base.tint = LEVEL_TINTS[Math.min(4, Math.max(0, level - 1))];
@@ -577,13 +663,17 @@ export class EntityView {
     badge.eventMode = 'none';
     const pips = new PIXI.Graphics();
     pips.eventMode = 'none';
-    pips.position.y = 34;
+    pips.position.y = 20;
     const hpBar = new PIXI.Graphics();
     hpBar.visible = false;
     hpBar.eventMode = 'none';
     hpBar.position.set(-22, -52);
     root.addChild(shadow, base, top, badge, pips, hpBar);
-    const node: TowerNode = { root, top, base, badge, pips, hpBar, angle: -Math.PI / 2, recoil: 0, level, kind, branch: undefined, baseScale: 0.2, hitPunch: 0, lastHpFrac: 1, lastHpVisible: false };
+    const aura = new PIXI.Graphics();
+    const buff = new PIXI.Graphics();
+    root.addChildAt(aura, 0);
+    root.addChild(buff);
+    const node: TowerNode = { root, top, base, badge, pips, hpBar, aura, buff, angle: -Math.PI / 2, recoil: 0, level, kind, branch: undefined, baseScale: 0.2, hitPunch: 0, lastHpFrac: 1, lastHpVisible: false, lastAuraRadius: -1, lastBuffed: false };
     this.drawPips(node);
     return node;
   }
@@ -617,9 +707,15 @@ export class EntityView {
         sprite.eventMode = 'none';
         sprite.texture = this.tex.get(p.kind) ?? this.tex.get('arrow') ?? PIXI.Texture.WHITE;
         sprite.anchor.set(0.5);
-        n = { sprite, kind: p.kind };
+        const shadow = reuse?.shadow ?? new PIXI.Sprite(this.tex.get('shadow'));
+        shadow.eventMode = 'none';
+        shadow.anchor.set(0.5);
+        shadow.alpha = 0.4;
+        n = { sprite, shadow, kind: p.kind };
+        if (shadow.parent !== this.projectileLayer) this.projectileLayer.addChild(shadow);
         if (sprite.parent !== this.projectileLayer) this.projectileLayer.addChild(sprite);
         sprite.visible = true;
+        shadow.visible = true;
         this.projectiles.set(p.id, n);
       }
       if (n.kind !== p.kind) {
@@ -629,11 +725,17 @@ export class EntityView {
       n.sprite.position.set(p.x, p.y);
       n.sprite.rotation = p.angle;
       if (p.kind === 'bomb') n.sprite.scale.set(1 + Math.sin(p.x * 0.05 + p.y * 0.05) * 0.08);
+      // Ground shadow tracks the shot: the vertical gap sells flight height.
+      const sh = p.kind === 'arrow' || p.kind === 'bullet' ? 0.26 : 0.34;
+      n.shadow.position.set(p.x + 2, p.y + 10);
+      n.shadow.scale.set(sh, sh * 0.55);
     }
     for (const [id, n] of this.projectiles) {
       if (!seen.has(id)) {
         this.projectileLayer.removeChild(n.sprite);
+        this.projectileLayer.removeChild(n.shadow);
         n.sprite.visible = false;
+        n.shadow.visible = false;
         if (this.projPool.length < 256) this.projPool.push(n);
         this.projectiles.delete(id);
       }
@@ -642,50 +744,119 @@ export class EntityView {
 
   // ---------- procedural texture painters (chunky cartoon) ----------
 
-  private shadowG(): PIXI.Graphics {
-    const g = new PIXI.Graphics();
-    g.ellipse(16, 8, 15, 7).fill({ color: 0x1a2e12, alpha: 0.32 });
-    return g;
+  /**
+   * Soft radial contact shadow baked from a canvas gradient (2.5D grounding).
+   * Sprites squash it into a ground-plane ellipse and grow/shrink it with the
+   * entity's hop height, so nothing ever floats without an anchor.
+   */
+  private softShadowTexture(): PIXI.Texture {
+    const cached = this.tex.get('shadow');
+    if (cached) return cached;
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+    grad.addColorStop(0, 'rgba(16,24,12,0.62)');
+    grad.addColorStop(0.5, 'rgba(16,24,12,0.3)');
+    grad.addColorStop(0.82, 'rgba(16,24,12,0.08)');
+    grad.addColorStop(1, 'rgba(16,24,12,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+    const tex = PIXI.Texture.from(canvas);
+    this.tex.set('shadow', tex);
+    return tex;
+  }
+
+  /**
+   * Radial "volume" fill: lit from the upper-left, shaded to the lower-right.
+   * `local` texture space maps the gradient to each shape's own bounds, so a
+   * single helper shades every body part without per-shape maths.
+   */
+  private volume(base: number, light = 0.5, dark = 0.34): PIXI.FillGradient {
+    const c = { x: 0.36, y: 0.3 };
+    return new PIXI.FillGradient({
+      type: 'radial',
+      center: c,
+      innerRadius: 0,
+      outerCenter: c,
+      outerRadius: 0.82,
+      colorStops: [
+        { offset: 0, color: mixColor(base, 0xffffff, light) },
+        { offset: 0.45, color: mixColor(base, 0xffffff, 0.06) },
+        { offset: 1, color: mixColor(base, 0x000000, dark) },
+      ],
+      textureSpace: 'local',
+    });
   }
 
   private gruntG(): PIXI.Graphics {
     const g = new PIXI.Graphics();
-    g.circle(24, 26, 18).fill({ color: 0x4ade80 });
-    g.circle(24, 26, 18).stroke({ width: 4, color: 0x1f7a3d });
-    g.ellipse(24, 32, 10, 7).fill({ color: 0x86efac });
-    g.circle(30, 18, 4).fill({ color: 0xbbf7d0, alpha: 0.9 });
-    g.circle(15, 42, 5).fill({ color: 0x22c55e });
-    g.circle(33, 42, 5).fill({ color: 0x22c55e });
-    g.circle(17, 22, 6.5).fill({ color: 0xffffff });
-    g.circle(31, 22, 6.5).fill({ color: 0xffffff });
-    g.circle(17, 22, 6.5).stroke({ width: 2, color: 0x1f7a3d });
-    g.circle(31, 22, 6.5).stroke({ width: 2, color: 0x1f7a3d });
-    g.circle(18, 23, 3).fill({ color: 0x1f2937 });
-    g.circle(32, 23, 3).fill({ color: 0x1f2937 });
-    g.circle(19, 22, 1.2).fill({ color: 0xffffff });
-    g.circle(33, 22, 1.2).fill({ color: 0xffffff });
-    // Angry brows: character at a glance.
-    g.poly([10, 13, 22, 16]).stroke({ width: 3, color: 0x1f7a3d, cap: 'round' });
-    g.poly([28, 16, 40, 13]).stroke({ width: 3, color: 0x1f7a3d, cap: 'round' });
+    const base = 0x4ade80;
+    const edge = 0x1b6b33;
+    const light = mixColor(base, 0xffffff, 0.7);
+    // Feet + stub arms (behind the body).
+    for (const fx of [15, 33]) {
+      g.circle(fx, 43, 6).fill(this.volume(0x3bbf63));
+      g.circle(fx, 43, 6).stroke({ width: 3, color: edge });
+    }
+    for (const ax of [6, 42]) {
+      g.circle(ax, 30, 5.5).fill(this.volume(0x3bbf63));
+      g.circle(ax, 30, 5.5).stroke({ width: 2.5, color: edge });
+    }
+    // Body.
+    g.circle(24, 26, 18).fill(this.volume(base));
+    g.circle(24, 26, 18).stroke({ width: 4, color: edge });
+    g.ellipse(24, 33, 11, 7.5).fill({ color: mixColor(base, 0xffffff, 0.55), alpha: 0.95 });
+    // Rim light (upper-left) + gloss.
+    g.ellipse(18, 18, 6.5, 4.5).fill({ color: light, alpha: 0.55 });
+    g.circle(21, 13.5, 2).fill({ color: 0xffffff, alpha: 0.8 });
+    // Eyes.
+    g.circle(17, 23, 6.5).fill({ color: 0xf7fee7 });
+    g.circle(31, 23, 6.5).fill({ color: 0xf7fee7 });
+    g.circle(17, 23, 6.5).stroke({ width: 2, color: edge });
+    g.circle(31, 23, 6.5).stroke({ width: 2, color: edge });
+    g.circle(18, 24, 3.1).fill({ color: 0x1f2937 });
+    g.circle(32, 24, 3.1).fill({ color: 0x1f2937 });
+    g.circle(19, 23, 1.3).fill({ color: 0xffffff });
+    g.circle(33, 23, 1.3).fill({ color: 0xffffff });
+    // Angry brows.
+    g.poly([9, 13, 22, 17]).stroke({ width: 3.5, color: edge, cap: 'round' });
+    g.poly([28, 17, 41, 13]).stroke({ width: 3.5, color: edge, cap: 'round' });
+    // Grimace with a fang.
+    g.roundRect(19, 33, 11, 4, 2).fill({ color: 0x14532d });
+    g.poly([22, 33, 24, 38, 26, 33]).fill({ color: 0xffffff });
     return g;
   }
 
   private runnerG(): PIXI.Graphics {
     const g = new PIXI.Graphics();
-    g.circle(20, 22, 13).fill({ color: 0xfb923c });
-    g.circle(20, 22, 13).stroke({ width: 3.5, color: 0xb45309 });
-    g.ellipse(20, 27, 7, 5).fill({ color: 0xfed7aa });
-    g.circle(25, 15, 3).fill({ color: 0xffedd5, alpha: 0.95 });
-    g.circle(13, 35, 4).fill({ color: 0xf97316 });
-    g.circle(27, 35, 4).fill({ color: 0xf97316 });
-    g.circle(15, 19, 5.5).fill({ color: 0xffffff });
-    g.circle(26, 19, 5.5).fill({ color: 0xffffff });
-    g.circle(15, 19, 5.5).stroke({ width: 2, color: 0xb45309 });
-    g.circle(26, 19, 5.5).stroke({ width: 2, color: 0xb45309 });
-    g.circle(16, 20, 2.6).fill({ color: 0x1f2937 });
-    g.circle(27, 20, 2.6).fill({ color: 0x1f2937 });
-    g.rect(7, 10, 28, 5).fill({ color: 0xef4444 });
-    // Motion ticks: sells the speed.
+    const base = 0xfb923c;
+    const edge = 0xb45309;
+    const light = mixColor(base, 0xffffff, 0.7);
+    // Legs (behind).
+    for (const lx of [13, 27]) {
+      g.circle(lx, 35, 5).fill(this.volume(0xf97316));
+      g.circle(lx, 35, 5).stroke({ width: 2.5, color: edge });
+    }
+    // Body.
+    g.circle(20, 22, 13).fill(this.volume(base));
+    g.circle(20, 22, 13).stroke({ width: 3.5, color: edge });
+    g.ellipse(20, 27, 7.5, 5.5).fill({ color: mixColor(base, 0xffffff, 0.6), alpha: 0.95 });
+    g.ellipse(15, 16, 5, 3.4).fill({ color: light, alpha: 0.55 });
+    // Wide alert eyes.
+    g.circle(15, 19, 5.5).fill({ color: 0xfffbeb });
+    g.circle(26, 19, 5.5).fill({ color: 0xfffbeb });
+    g.circle(15, 19, 5.5).stroke({ width: 2, color: edge });
+    g.circle(26, 19, 5.5).stroke({ width: 2, color: edge });
+    g.circle(16, 20, 2.7).fill({ color: 0x1f2937 });
+    g.circle(27, 20, 2.7).fill({ color: 0x1f2937 });
+    // Headband with trailing tail.
+    g.roundRect(6, 10, 28, 5.5, 2.75).fill(this.volume(0xef4444));
+    g.roundRect(6, 10, 28, 5.5, 2.75).stroke({ width: 2, color: 0x991b1b });
+    g.poly([6, 12, -2, 17, 6, 15]).fill({ color: 0xdc2626 });
+    // Speed streaks.
     g.poly([2, 16, 8, 16]).stroke({ width: 2.5, color: 0xfdba74, cap: 'round' });
     g.poly([0, 24, 7, 24]).stroke({ width: 2.5, color: 0xfdba74, cap: 'round' });
     return g;
@@ -693,49 +864,71 @@ export class EntityView {
 
   private spearmanG(): PIXI.Graphics {
     const g = new PIXI.Graphics();
-    g.poly([38, 46, 58, 8]).stroke({ width: 4, color: 0x92400e, cap: 'round' });
-    g.poly([54, 4, 62, 12]).stroke({ width: 5, color: 0xe5e7eb, cap: 'round' });
-    g.circle(24, 28, 16).fill({ color: 0xef4444 });
-    g.circle(24, 28, 16).stroke({ width: 4, color: 0x7f1d1d });
-    g.ellipse(24, 34, 9, 6).fill({ color: 0xfca5a5 });
-    g.circle(29, 21, 3.5).fill({ color: 0xfee2e2, alpha: 0.9 });
-    g.circle(15, 44, 4.5).fill({ color: 0xdc2626 });
-    g.circle(33, 44, 4.5).fill({ color: 0xdc2626 });
-    g.rect(9, 12, 30, 5).fill({ color: 0x7f1d1d });
-    g.circle(17, 25, 6).fill({ color: 0xffffff });
-    g.circle(31, 25, 6).fill({ color: 0xffffff });
-    g.circle(17, 25, 6).stroke({ width: 2, color: 0x7f1d1d });
-    g.circle(31, 25, 6).stroke({ width: 2, color: 0x7f1d1d });
-    g.circle(18, 26, 2.8).fill({ color: 0x1f2937 });
-    g.circle(32, 26, 2.8).fill({ color: 0x1f2937 });
-    g.poly([10, 16, 22, 19]).stroke({ width: 3, color: 0x7f1d1d, cap: 'round' });
-    g.poly([28, 19, 40, 16]).stroke({ width: 3, color: 0x7f1d1d, cap: 'round' });
+    const base = 0xef4444;
+    const edge = 0x7f1d1d;
+    const light = mixColor(base, 0xffffff, 0.7);
+    // Spear (behind the body).
+    g.poly([38, 46, 58, 8]).stroke({ width: 4.5, color: 0x7c4a1e, cap: 'round' });
+    g.poly([38, 46, 58, 8]).stroke({ width: 2, color: 0xb98a52, cap: 'round' });
+    g.poly([53, 3, 63, 13, 56, 10, 54, 12]).fill({ color: 0xe5e7eb });
+    g.poly([53, 3, 63, 13]).stroke({ width: 2, color: 0x9ca3af, cap: 'round' });
+    // Feet.
+    for (const fx of [15, 33]) {
+      g.circle(fx, 44, 5).fill(this.volume(0xdc2626));
+      g.circle(fx, 44, 5).stroke({ width: 2.5, color: edge });
+    }
+    // Body.
+    g.circle(24, 28, 16).fill(this.volume(base));
+    g.circle(24, 28, 16).stroke({ width: 4, color: edge });
+    g.ellipse(24, 34, 9.5, 6.5).fill({ color: mixColor(base, 0xffffff, 0.6), alpha: 0.95 });
+    g.ellipse(18, 22, 5.5, 3.6).fill({ color: light, alpha: 0.5 });
+    // Metal helm band with a rivet.
+    g.roundRect(9, 12, 30, 6, 3).fill(this.volume(0x9ca3af, 0.4, 0.2));
+    g.roundRect(9, 12, 30, 6, 3).stroke({ width: 2, color: 0x4b5563 });
+    g.circle(24, 15, 3).fill({ color: 0xfbbf24 });
+    // Eyes.
+    g.circle(17, 26, 6).fill({ color: 0xfff1f2 });
+    g.circle(31, 26, 6).fill({ color: 0xfff1f2 });
+    g.circle(17, 26, 6).stroke({ width: 2, color: edge });
+    g.circle(31, 26, 6).stroke({ width: 2, color: edge });
+    g.circle(18, 27, 2.9).fill({ color: 0x1f2937 });
+    g.circle(32, 27, 2.9).fill({ color: 0x1f2937 });
+    g.poly([9, 17, 22, 21]).stroke({ width: 3.5, color: edge, cap: 'round' });
+    g.poly([28, 21, 41, 17]).stroke({ width: 3.5, color: edge, cap: 'round' });
     return g;
   }
 
   private tankG(): PIXI.Graphics {
     const g = new PIXI.Graphics();
-    g.circle(32, 34, 26).fill({ color: 0xa78bfa });
-    g.circle(32, 34, 26).stroke({ width: 5, color: 0x5b21b6 });
-    g.roundRect(8, 12, 16, 12, 4).fill({ color: 0xd1d5db });
-    g.roundRect(8, 12, 16, 12, 4).stroke({ width: 2.5, color: 0x6b7280 });
-    g.roundRect(40, 12, 16, 12, 4).fill({ color: 0xd1d5db });
-    g.roundRect(40, 12, 16, 12, 4).stroke({ width: 2.5, color: 0x6b7280 });
-    g.roundRect(22, 44, 20, 12, 4).fill({ color: 0xd1d5db });
-    g.roundRect(22, 44, 20, 12, 4).stroke({ width: 2.5, color: 0x6b7280 });
-    g.circle(16, 18, 2).fill({ color: 0x9ca3af });
-    g.circle(48, 18, 2).fill({ color: 0x9ca3af });
-    g.ellipse(32, 42, 13, 8).fill({ color: 0xc4b5fd });
-    g.circle(23, 28, 7).fill({ color: 0xffffff });
-    g.circle(41, 28, 7).fill({ color: 0xffffff });
-    g.circle(23, 28, 7).stroke({ width: 2.5, color: 0x5b21b6 });
-    g.circle(41, 28, 7).stroke({ width: 2.5, color: 0x5b21b6 });
-    g.circle(23, 29, 3.2).fill({ color: 0xdc2626 });
-    g.circle(41, 29, 3.2).fill({ color: 0xdc2626 });
-    g.poly([15, 20, 29, 23]).stroke({ width: 3.5, color: 0x5b21b6, cap: 'round' });
-    g.poly([35, 23, 49, 20]).stroke({ width: 3.5, color: 0x5b21b6, cap: 'round' });
+    const base = 0xa78bfa;
+    const edge = 0x4c1d95;
+    const metal = 0xd1d5db;
+    const metalEdge = 0x6b7280;
+    const light = mixColor(base, 0xffffff, 0.75);
+    // Armor plates (behind the body).
+    for (const [px, py] of [[8, 12], [40, 12], [22, 44]] as const) {
+      g.roundRect(px, py, 16, 12, 4).fill(this.volume(metal, 0.4, 0.2));
+      g.roundRect(px, py, 16, 12, 4).stroke({ width: 2.5, color: metalEdge });
+    }
+    // Body.
+    g.circle(32, 34, 26).fill(this.volume(base));
+    g.circle(32, 34, 26).stroke({ width: 5, color: edge });
+    g.ellipse(32, 43, 13, 8).fill({ color: mixColor(base, 0xffffff, 0.6), alpha: 0.95 });
+    g.ellipse(23, 24, 8, 5).fill({ color: light, alpha: 0.55 });
+    // Rivets.
+    g.circle(16, 18, 2.2).fill({ color: 0x9ca3af });
+    g.circle(48, 18, 2.2).fill({ color: 0x9ca3af });
+    // Menacing glowing eyes.
+    g.circle(23, 28, 7).fill({ color: 0x111827 });
+    g.circle(41, 28, 7).fill({ color: 0x111827 });
+    g.circle(23, 29, 3.4).fill({ color: 0xf87171 });
+    g.circle(41, 29, 3.4).fill({ color: 0xf87171 });
+    g.circle(22, 28, 1.3).fill({ color: 0xffffff });
+    g.circle(40, 28, 1.3).fill({ color: 0xffffff });
+    g.poly([15, 20, 29, 24]).stroke({ width: 3.5, color: edge, cap: 'round' });
+    g.poly([35, 24, 49, 20]).stroke({ width: 3.5, color: edge, cap: 'round' });
     // Battle crack across the armor.
-    g.poly([44, 34, 38, 40, 42, 46]).stroke({ width: 2, color: 0x4c1d95, cap: 'round' });
+    g.poly([45, 32, 39, 39, 43, 47]).stroke({ width: 2, color: 0x3b1580, cap: 'round' });
     return g;
   }
 
@@ -749,23 +942,26 @@ export class EntityView {
     hornEdge = 0x7a5b00,
   ): PIXI.Graphics {
     const g = new PIXI.Graphics();
-    // Hulking warlord (palette swaps per variant).
-    g.circle(52, 56, 40).fill({ color: body });
-    g.circle(52, 56, 40).stroke({ width: 7, color: edge });
-    g.ellipse(52, 70, 22, 15).fill({ color: belly });
+    const light = mixColor(body, 0xffffff, 0.5);
+    const darkish = mixColor(body, 0x000000, 0.4);
     // Spiked pauldrons.
-    g.circle(20, 42, 16).fill({ color: edge });
+    g.circle(20, 42, 16).fill(this.volume(darkish));
     g.circle(20, 42, 16).stroke({ width: 5, color: edge });
-    g.circle(84, 42, 16).fill({ color: edge });
+    g.circle(84, 42, 16).fill(this.volume(darkish));
     g.circle(84, 42, 16).stroke({ width: 5, color: edge });
-    g.poly([8, 30, 20, 12, 32, 30]).fill({ color: spike });
+    g.poly([8, 30, 20, 12, 32, 30]).fill(this.volume(spike, 0.5, 0.25));
     g.poly([8, 30, 20, 12, 32, 30]).stroke({ width: 3, color: spikeEdge });
-    g.poly([72, 30, 84, 12, 96, 30]).fill({ color: spike });
+    g.poly([72, 30, 84, 12, 96, 30]).fill(this.volume(spike, 0.5, 0.25));
     g.poly([72, 30, 84, 12, 96, 30]).stroke({ width: 3, color: spikeEdge });
+    // Hulking warlord body (palette swaps per variant).
+    g.circle(52, 56, 40).fill(this.volume(body));
+    g.circle(52, 56, 40).stroke({ width: 7, color: edge });
+    g.ellipse(52, 70, 22, 15).fill({ color: belly, alpha: 0.95 });
+    g.ellipse(38, 40, 13, 8).fill({ color: light, alpha: 0.5 });
     // Crown horns.
-    g.poly([26, 24, 34, 2, 42, 26]).fill({ color: horn });
+    g.poly([26, 24, 34, 2, 42, 26]).fill(this.volume(horn, 0.55, 0.2));
     g.poly([26, 24, 34, 2, 42, 26]).stroke({ width: 3, color: hornEdge });
-    g.poly([62, 26, 70, 2, 78, 24]).fill({ color: horn });
+    g.poly([62, 26, 70, 2, 78, 24]).fill(this.volume(horn, 0.55, 0.2));
     g.poly([62, 26, 70, 2, 78, 24]).stroke({ width: 3, color: hornEdge });
     // Glowing angry eyes.
     g.circle(38, 50, 9).fill({ color: 0x111827 });
@@ -774,13 +970,13 @@ export class EntityView {
     g.circle(67, 50, 4.5).fill({ color: 0xfde047 });
     g.circle(39, 49, 1.8).fill({ color: 0xffffff });
     g.circle(67, 49, 1.8).fill({ color: 0xffffff });
-    g.poly([26, 40, 44, 46]).stroke({ width: 5, color: 0x4c0519, cap: 'round' });
-    g.poly([60, 46, 78, 40]).stroke({ width: 5, color: 0x4c0519, cap: 'round' });
+    g.poly([26, 40, 44, 46]).stroke({ width: 5, color: edge, cap: 'round' });
+    g.poly([60, 46, 78, 40]).stroke({ width: 5, color: edge, cap: 'round' });
     // Tusked maw.
-    g.roundRect(38, 68, 28, 12, 5).fill({ color: 0x450a0a });
+    g.roundRect(38, 68, 28, 12, 5).fill({ color: 0x2a0606 });
     g.poly([40, 68, 44, 79, 48, 68]).fill({ color: 0xffffff });
     g.poly([56, 68, 60, 79, 64, 68]).fill({ color: 0xffffff });
-    g.poly([70, 58, 76, 66, 72, 74]).stroke({ width: 2.5, color: 0x4c0519, cap: 'round' });
+    g.poly([70, 58, 76, 66, 72, 74]).stroke({ width: 2.5, color: edge, cap: 'round' });
     return g;
   }
 
@@ -790,21 +986,41 @@ export class EntityView {
     return g;
   }
 
+  /**
+   * 2.5D tower drum: an extruded cylinder with a visible side wall, a lit top
+   * face and a stone contact plinth. Because the top rotates with the weapon
+   * while the drum stays put, the base reads as a solid object standing on the
+   * ground rather than a flat disc. Baked once per tower type.
+   */
   private towerBaseG(fill: number, edge: number): PIXI.Graphics {
     const g = new PIXI.Graphics();
-    // Stone plinth ring under the wooden/metal base (diorama miniature feel).
-    g.circle(28, 32, 27).fill({ color: 0xd9cfb8 });
-    g.circle(28, 32, 27).stroke({ width: 4, color: 0x8a7f63 });
-    g.circle(28, 30, 24).fill({ color: fill });
-    g.circle(28, 30, 24).stroke({ width: 5, color: edge });
-    g.circle(28, 30, 15).fill({ color: 0xffffff, alpha: 0.22 });
-    // Metal bolts around the rim.
+    const cx = 32;
+    const topY = 24;
+    const botY = 52;
+    const rx = 24;
+    const ry = 12;
+    const side = mixColor(fill, edge, 0.45);
+    const sideDark = mixColor(fill, edge, 0.82);
+    const sideLight = mixColor(fill, 0xffffff, 0.32);
+
+    // Contact plinth (stone ring) grounded on the grass.
+    g.ellipse(cx, 55, 28, 10).fill({ color: 0xd9cfb8 });
+    g.ellipse(cx, 55, 28, 10).stroke({ width: 4, color: 0x8a7f63 });
+    // Drum bottom cap.
+    g.ellipse(cx, botY, rx, ry).fill({ color: sideDark });
+    // Side wall.
+    g.roundRect(cx - rx, topY, rx * 2, botY - topY + 2, 6).fill({ color: side });
+    // Left key-light band + right occlusion band (sun from upper-left).
+    g.roundRect(cx - rx + 4, topY + 4, 9, botY - topY - 4, 4).fill({ color: sideLight, alpha: 0.5 });
+    g.roundRect(cx + rx - 12, topY + 4, 8, botY - topY - 4, 4).fill({ color: 0x000000, alpha: 0.16 });
+    // Top face cap (lit).
+    g.ellipse(cx, topY, rx, ry).fill({ color: fill });
+    g.ellipse(cx, topY, rx, ry).stroke({ width: 5, color: edge });
+    g.ellipse(cx - 3, topY - 3, rx * 0.62, ry * 0.55).fill({ color: 0xffffff, alpha: 0.22 });
+    // Bolts around the top rim (follow the ellipse).
     for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      g.circle(28 + Math.cos(a) * 20, 30 + Math.sin(a) * 20, 2.4).fill({ color: edge });
-    }
-    for (const [bx, by] of [[12, 16], [44, 16], [12, 44], [44, 44]] as const) {
-      g.circle(bx, by, 3.2).fill({ color: edge });
+      const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+      g.circle(cx + Math.cos(a) * (rx - 4), topY + Math.sin(a) * (ry - 2.5), 2.4).fill({ color: edge });
     }
     return g;
   }
@@ -877,6 +1093,55 @@ export class EntityView {
     g.circle(26, 28, 9).stroke({ width: 3, color: 0x0b0f16 });
     g.circle(26, 28, 4).fill({ color: 0x9ca3af });
     g.circle(26, 28, 2).fill({ color: 0xef4444 });
+    return g;
+  }
+
+  private alchemistTopG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    // Alembics still bubbling with a greenish poison.
+    g.circle(24, 28, 18).fill({ color: 0x7c3bed });
+    g.circle(24, 28, 18).stroke({ width: 3, color: 0x4b0082 });
+    g.circle(24, 26, 11).fill({ color: 0x8b5cf6, alpha: 0.85 });
+    // Glass dome with a swirling drop.
+    g.poly([20, 16, 28, 16]).stroke({ width: 2.5, color: 0xc4b5fd });
+    g.circle(24, 20, 4).fill({ color: 0x4ade80, alpha: 0.9 });
+    g.circle(22, 19, 1.5).fill({ color: 0xffffff });
+    return g;
+  }
+
+  private warDrumsTopG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    // Tensioned drumhead over a rim.
+    g.circle(24, 28, 18).fill({ color: 0x92400e });
+    g.circle(24, 28, 18).stroke({ width: 6, color: 0x451a03 });
+    g.circle(24, 28, 12).fill({ color: 0x000000, alpha: 0.25 });
+    // Lugs + tension ropes.
+    for (const a of [0.4, 2.7, 3.6, 5.9]) {
+      const dx = Math.cos(a) * 14;
+      const dy = Math.sin(a) * 14;
+      g.poly([24, 28, 24 + dx, 28 + dy]).stroke({ width: 3, color: 0x451a03, cap: 'round' });
+      g.circle(24 + dx, 28 + dy, 4).fill({ color: 0x451a03 });
+    }
+    return g;
+  }
+
+  private poisonOverlayG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    // Green translucent overlay tinted on top of the body sprite.
+    g.circle(24, 24, 22).fill({ color: 0x4ade80, alpha: 0.3 });
+    return g;
+  }
+
+  private vialG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    // Glass vial with a green poison core.
+    g.poly([4, 2, 16, 2, 18, 14, 2, 14]).fill({ color: 0x4ade80, alpha: 0.35 });
+    g.poly([4, 2, 16, 2, 18, 14, 2, 14]).stroke({ width: 2, color: 0x1f2937 });
+    g.poly([6, 4, 14, 4, 15, 13, 5, 13]).fill({ color: 0x22c55e });
+    g.poly([8, 6, 12, 6, 13, 12, 7, 12]).fill({ color: 0xffffff, alpha: 0.4 });
+    // Dropper bulb.
+    g.circle(16, 3, 4).fill({ color: 0x1f2937 });
+    g.circle(16, 3, 4).stroke({ width: 1.5, color: 0x0f172a });
     return g;
   }
 

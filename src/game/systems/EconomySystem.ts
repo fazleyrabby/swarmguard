@@ -56,3 +56,16 @@ export function grantWaveReward(
   addGold(state, reward, events);
   return reward;
 }
+
+/**
+ * Frugal reward (spec §94): after a wave, refund a slice of the gold the player
+ * had in reserve at wave start. Encourages tight tower placements.
+ */
+export function grantEfficiencyBonus(state: GameState, events?: EventBus): number {
+  const unspent = Math.max(0, state.gold - state.goldAtWaveStart);
+  const bonus = Math.min(50, Math.floor(unspent * 0.1));
+  if (bonus > 0) {
+    addGold(state, bonus, events);
+  }
+  return bonus;
+}

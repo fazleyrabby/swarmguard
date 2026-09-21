@@ -8,11 +8,12 @@ import { AchievementStore, evaluateAchievements } from './achievements';
 import { createInitialState } from './GameState';
 import { Game } from './Game';
 import { EventBus } from './EventBus';
-import { canAfford, spendGold, addGold } from './systems/EconomySystem';
+import { canAfford, spendGold, addGold, grantEfficiencyBonus } from './systems/EconomySystem';
 import { acquireTarget } from './systems/TargetingSystem';
 import { makeEnemy } from './systems/SpawnSystem';
+import { applyPoisonEffect } from './entities';
 import { damageEnemy } from './systems/CombatSystem';
-import { updateAbilities } from './systems/AbilitySystem';
+import { updateAbilities, applyPoison } from './systems/AbilitySystem';
 import type { Enemy } from './entities';
 
 function fakeEnemy(over: Partial<Enemy> & { id: number }): Enemy {
@@ -207,8 +208,8 @@ describe('maps', () => {
 });
 
 describe('towers', () => {
-  it('exposes five towers, each with five upgrade levels', () => {
-    expect(TOWER_IDS).toHaveLength(5);
+  it('exposes seven towers, each with five upgrade levels', () => {
+    expect(TOWER_IDS).toHaveLength(7);
     for (const id of TOWER_IDS) {
       expect(TOWERS[id].levels).toHaveLength(5);
     }
@@ -310,6 +311,114 @@ describe('upgrade branches', () => {
     const t = g.buildTower('slot-1', 'frost');
     expect(g.upgradeTower(t!.id)).toBe(true);
     expect(g.state.towers[0].branch).toBeUndefined();
+  });
+});
+
+describe('alchemist poison', () => {
+  it('applies poison on hit and ticks once per second', () => {
+    const g = new Game(11);
+    g.startGame();
+    g.state.gold = 10000;
+    const tower = g.buildTower('slot-1', 'alchemist');
+    expect(tower).toBeDefined();
+    const enemy = makeEnemy('grunt', 1, 1, g.state.map.spawn);
+    enemy.hp = 100;
+    enemy.maxHp = 100;
+    g.state.enemies = [enemy];
+    const stats = getTowerLevel('alchemist', 1);
+    expect(stats.poisonDamagePerSec).toBe(8);
+    applyPoisonEffect(enemy, tower!.id, stats.poisonDamagePerSec!, stats.poisonDuration!);
+    applyPoison(g.state, 1, g.events);
+    expect(enemy.hp).toBe(100 - 8);
+    applyPoison(g.state, 1, g.events);
+    expect(enemy.hp).toBe(100 - 16);
+  });
+  it('same-source poison refreshes rather than stacking', () => {
+    const g = new Game(12);
+    g.startGame();
+    g.state.gold = 10000;
+    const tower = g.buildTower('slot-1', 'alchemist');
+    const enemy = makeEnemy('grunt', 1, 1, g.state.map.spawn);
+    enemy.hp = 1000;
+    g.state.enemies = [enemy];
+    applyPoisonEffect(enemy, tower!.id, 8, 3);
+    applyPoisonEffect(enemy, tower!.id, 10, 3);
+    expect(enemy.poisonEffects).toHaveLength(1);
+  });
+  it('poison expires after duration', () => {
+    const g = new Game(13);
+    g.startGame();
+    g.state.gold = 10000;
+    const tower = g.buildTower('slot-1', 'alchemist');
+    const enemy = makeEnemy('grunt', 1, 1, g.state.map.spawn);
+    enemy.hp = 999;
+    g.state.enemies = [enemy];
+    applyPoisonEffect(enemy, tower!.id, 8, 2);
+    applyPoison(g.state, 1, g.events);
+    applyPoison(g.state, 1, g.events);
+    applyPoison(g.state, 1, g.events);
+    expect(enemy.poisonEffects).toHaveLength(0);
+  });
+});
+
+describe('war drums aura', () => {
+  it('buffs nearby towers and is removed when sold', () => {
+    const g = new Game(14);
+    g.startGame();
+    g.state.gold = 10000;
+    const drums = g.buildTower('slot-1', 'war-drums');
+    const crossbow = g.buildTower('slot-2', 'crossbow');
+    expect(drums).toBeDefined();
+    expect(crossbow).toBeDefined();
+    // Place towers close together so they're within aura range (160px).
+    crossbow!.x = drums!.x + 50;
+    crossbow!.y = drums!.y;
+    g.recalculateAuras();
+    const updated = g.state.towers.find((t) => t.id === crossbow!.id)!;
+    expect(updated.auraSourceTowerId).toBe(drums!.id);
+    expect(updated.auraAttackSpeedBonus).toBeGreaterThan(0);
+    g.sellTower(drums!.id);
+    expect(updated.auraSourceTowerId).toBeUndefined();
+  });
+  it('only one aura source applies when overlapping', () => {
+    const g = new Game(15);
+    g.startGame();
+    g.state.gold = 10000;
+    const d1 = g.buildTower('slot-1', 'war-drums');
+    const d2 = g.buildTower('slot-2', 'war-drums');
+    const crossbow = g.buildTower('slot-3', 'crossbow');
+    // Place all towers within overlapping aura range.
+    d2!.x = d1!.x + 40;
+    d2!.y = d1!.y;
+    crossbow!.x = d1!.x + 20;
+    crossbow!.y = d1!.y;
+    g.recalculateAuras();
+    const updated = g.state.towers.find((t) => t.id === crossbow!.id)!;
+    expect(updated.auraSourceTowerId).toBeDefined();
+    expect(updated.auraAttackSpeedBonus).toBeGreaterThan(0);
+  });
+});
+
+describe('efficiency bonus', () => {
+  it('rewards unspent gold at wave end, capped at 50', () => {
+    const s = createInitialState();
+    s.gold = 800;
+    s.goldAtWaveStart = 200;
+    const bonus = grantEfficiencyBonus(s);
+    expect(bonus).toBe(50);
+    expect(s.gold).toBe(850);
+  });
+  it('zero bonus when no unspent gold', () => {
+    const s = createInitialState();
+    s.gold = 200;
+    s.goldAtWaveStart = 200;
+    expect(grantEfficiencyBonus(s)).toBe(0);
+  });
+  it('scales by 10% below cap', () => {
+    const s = createInitialState();
+    s.gold = 250;
+    s.goldAtWaveStart = 200;
+    expect(grantEfficiencyBonus(s)).toBe(5);
   });
 });
 

@@ -10,6 +10,35 @@ export type TargetingMode = 'first' | 'nearest' | 'strongest' | 'weakest';
 /** Default targeting for all towers (spec §24). */
 export const DEFAULT_TARGETING: TargetingMode = 'first';
 
+export interface PoisonEffect {
+  sourceTowerId: string;
+  damagePerSecond: number;
+  duration: number;
+  elapsed: number;
+  tickTimer: number;
+}
+
+/** Apply or refresh a poison dose from one tower. */
+export function applyPoisonEffect(
+  enemy: Enemy,
+  sourceTowerId: string,
+  damagePerSecond: number,
+  duration: number,
+): void {
+  if (damagePerSecond <= 0 || duration <= 0) return;
+  const effects = enemy.poisonEffects ?? [];
+  const existing = effects.find((effect) => effect.sourceTowerId === sourceTowerId);
+  if (existing) {
+    existing.damagePerSecond = Math.max(existing.damagePerSecond, damagePerSecond);
+    existing.duration = Math.max(existing.duration, duration);
+    existing.elapsed = 0;
+    existing.tickTimer = 0;
+    return;
+  }
+  effects.push({ sourceTowerId, damagePerSecond, duration, elapsed: 0, tickTimer: 0 });
+  enemy.poisonEffects = effects;
+}
+
 export interface Enemy {
   id: number;
   type: EnemyType;
@@ -41,6 +70,8 @@ export interface Enemy {
   slowTimeLeft: number;
   /** Slow strength 0–1 (fraction of speed removed). */
   slowFactor: number;
+  /** Active poison effects, keyed by source tower. */
+  poisonEffects?: PoisonEffect[];
   /** Tower-attack range in world px (spearman). Undefined = walks past towers. */
   attackRange?: number;
   /** Damage dealt per stab to the engaged tower. */
@@ -73,9 +104,17 @@ export interface Tower {
   targetId?: number;
   /** Facing angle in radians (used by renderer later). */
   angle: number;
+  /** Aura radius granted by a support tower, after run range modifiers. */
+  auraRadius?: number;
+  /** Runtime attack-speed bonus from the nearest War Drums tower. */
+  auraAttackSpeedBonus?: number;
+  /** Runtime damage bonus from the nearest War Drums tower. */
+  auraDamageBonus?: number;
+  /** Source support tower for the current aura buff. */
+  auraSourceTowerId?: string;
 }
 
-export type ProjectileKind = 'arrow' | 'cannonball' | 'bomb' | 'frostshard' | 'bullet';
+export type ProjectileKind = 'arrow' | 'cannonball' | 'bomb' | 'frostshard' | 'vial' | 'bullet';
 
 export interface Projectile {
   id: number;
@@ -91,6 +130,8 @@ export interface Projectile {
   splashRadius?: number;
   slowFactor?: number;
   slowDuration?: number;
+  poisonDamagePerSec?: number;
+  poisonDuration?: number;
   sourceTowerId: string;
   alive: boolean;
   /** Seconds since fired — strays fizzle at maxAge. */

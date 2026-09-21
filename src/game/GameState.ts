@@ -31,6 +31,10 @@ export interface GameState {
   prevStatus?: GameStatus;
   wave: number;
   gold: number;
+  /** Gold available when the active wave began, used for the efficiency bonus. */
+  goldAtWaveStart: number;
+  /** Seconds until the next aura recalculation. */
+  auraTimer: number;
   baseHp: number;
   baseMaxHp: number;
   enemies: Enemy[];
@@ -82,6 +86,8 @@ export function createInitialState(
     mods,
     wave: 0,
     gold: (challenge.startingGold ?? map.startingGold) + mods.startGoldBonus,
+    goldAtWaveStart: 0,
+    auraTimer: 0,
     baseHp,
     baseMaxHp: baseHp,
     enemies: [],

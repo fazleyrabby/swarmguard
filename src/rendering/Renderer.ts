@@ -89,9 +89,13 @@ export class Renderer {
       'effects',
       'overlay',
     ];
+    // 2.5D depth: actor layers sort their children by `zIndex`, which the
+    // entity views set to world-y so lower units overlap higher ones.
+    const sorted: LayerName[] = ['tower', 'enemy', 'projectile'];
     for (const name of order) {
       const c = new PIXI.Container();
       c.label = `layer-${name}`;
+      c.sortableChildren = sorted.includes(name);
       this.world.addChild(c);
       this.layers[name] = c;
     }
