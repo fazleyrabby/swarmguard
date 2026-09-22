@@ -186,6 +186,8 @@ export class HUD {
       const open = this.bottomArea.classList.toggle('footer-open');
       this.footerToggleBtn.textContent = open ? '▴' : '▾';
       this.footerToggleBtn.setAttribute('aria-expanded', String(open));
+      this.footerToggleBtn.setAttribute('aria-label', open ? 'Hide footer info' : 'Show footer info');
+      this.footerToggleBtn.title = open ? 'Hide info' : 'Show info';
     });
 
     this.supportOpenBtn.addEventListener('click', () => this.showSupport());

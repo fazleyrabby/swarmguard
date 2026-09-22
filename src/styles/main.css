@@ -2470,3 +2470,67 @@ body {
   .hud-pill { padding-left: 32px; }
   .hud-hp::after { display: none; }
 }
+
+/* Mobile footer state must win over the desktop command-bar skin above. */
+@media (orientation: landscape) and (max-height: 700px),
+       (max-width: 760px) and (orientation: portrait) {
+  #bottom-area {
+    position: relative;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  #bottom-area #bottombar {
+    display: none;
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid var(--command-line);
+    border-radius: 12px;
+    background: var(--command);
+    color: #d7dcef;
+    box-shadow: 0 10px 28px rgba(5, 8, 18, 0.3);
+  }
+
+  #bottom-area.footer-open #bottombar {
+    display: flex;
+  }
+
+  #bottom-actions {
+    position: absolute;
+    right: max(6px, env(safe-area-inset-right));
+    bottom: 100%;
+    z-index: 20;
+    margin-bottom: 6px;
+  }
+
+  #bottom-area #btn-footer-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 12px;
+    background: var(--command);
+    color: #f3f5ff;
+    font-size: 18px;
+    line-height: 1;
+    box-shadow: 0 8px 22px rgba(5, 8, 18, 0.34);
+  }
+
+  #bottom-area.footer-open #btn-footer-toggle {
+    border-color: rgba(242, 201, 76, 0.65);
+    color: var(--signal);
+  }
+
+  #bottom-area #btn-start-wave {
+    min-height: 44px;
+  }
+}
