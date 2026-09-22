@@ -209,7 +209,7 @@ export class HUD {
 
   /** Called every frame; writes to the DOM only when values change. */
   update(state: GameState, opts: { paused: boolean; muted: boolean }): void {
-    const hpText = `❤️ ${state.baseHp}/${state.baseMaxHp}`;
+    const hpText = `❤️ ${Math.round(state.baseHp)}/${state.baseMaxHp}`;
     if (hpText !== this.lastHp) {
       this.lastHp = hpText;
       this.hp.textContent = hpText;
