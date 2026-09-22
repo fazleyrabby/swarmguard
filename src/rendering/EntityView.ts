@@ -75,6 +75,7 @@ interface TowerNode {
   root: PIXI.Container;
   top: PIXI.Container;
   base: PIXI.Sprite;
+  evolution: PIXI.Graphics;
   badge: PIXI.Text;
   pips: PIXI.Graphics;
   hpBar: PIXI.Graphics;
@@ -579,6 +580,7 @@ export class EntityView {
         n.badge.text = t.level > 1 ? `Lv${t.level}${branch ? ` ${branch.abbr}` : ''}` : '';
         n.badge.style.fill = branch ? branch.color : 0xffffff;
         n.base.tint = LEVEL_TINTS[Math.min(4, Math.max(0, t.level - 1))];
+        this.drawTowerEvolution(n);
         this.drawPips(n);
       }
       // Rotate weapon toward target (spec §40) + recoil decay.
@@ -668,14 +670,76 @@ export class EntityView {
     hpBar.visible = false;
     hpBar.eventMode = 'none';
     hpBar.position.set(-22, -52);
-    root.addChild(shadow, base, top, badge, pips, hpBar);
+    const evolution = new PIXI.Graphics();
+    evolution.eventMode = 'none';
+    root.addChild(shadow, base, evolution, top, badge, pips, hpBar);
     const aura = new PIXI.Graphics();
     const buff = new PIXI.Graphics();
     root.addChildAt(aura, 0);
     root.addChild(buff);
-    const node: TowerNode = { root, top, base, badge, pips, hpBar, aura, buff, angle: -Math.PI / 2, recoil: 0, level, kind, branch: undefined, baseScale: 0.2, hitPunch: 0, lastHpFrac: 1, lastHpVisible: false, lastAuraRadius: -1, lastBuffed: false };
+    const node: TowerNode = { root, top, base, evolution, badge, pips, hpBar, aura, buff, angle: -Math.PI / 2, recoil: 0, level, kind, branch: undefined, baseScale: 0.2, hitPunch: 0, lastHpFrac: 1, lastHpVisible: false, lastAuraRadius: -1, lastBuffed: false };
+    this.drawTowerEvolution(node);
     this.drawPips(node);
     return node;
+  }
+
+  /**
+   * Visible tower evolution. Upgrades used to be only a tint + tiny pips;
+   * these structural pieces make level and branch readable from the field.
+   * Everything is vector geometry attached to the pooled tower container, so
+   * it adds no textures and redraws only when an upgrade changes.
+   */
+  private drawTowerEvolution(n: TowerNode): void {
+    const g = n.evolution;
+    g.clear();
+    const level = n.level;
+    const gold = 0xf6c453;
+    const goldEdge = 0x76521a;
+    const steel = 0xd6deea;
+    const steelEdge = 0x465069;
+
+    // Level 2: reinforced rim clamps widen the base silhouette.
+    if (level >= 2) {
+      for (const x of [-25, 25]) {
+        g.roundRect(x - 5, -3, 10, 25, 3).fill({ color: steel });
+        g.roundRect(x - 5, -3, 10, 25, 3).stroke({ width: 2.5, color: steelEdge });
+        g.circle(x, 3, 2.2).fill({ color: gold });
+      }
+    }
+
+    // Level 3: a rear pennant makes the mid-tier silhouette unmistakable.
+    if (level >= 3) {
+      const branchColor = n.branch
+        ? (branchFor(n.kind as TowerId, n.branch)?.color ?? gold)
+        : gold;
+      g.poly([-20, 8, -20, -48]).stroke({ width: 4, color: 0x4b3219, cap: 'round' });
+      g.poly([-18, -47, 4, -39, -18, -29]).fill({ color: branchColor });
+      g.poly([-18, -47, 4, -39, -18, -29]).stroke({ width: 2.5, color: goldEdge, join: 'round' });
+    }
+
+    // Level 4: gold armor rails and corner studs communicate investment.
+    if (level >= 4) {
+      g.poly([-22, 9, -15, 18, 15, 18, 22, 9]).stroke({ width: 5, color: goldEdge, cap: 'round', join: 'round' });
+      g.poly([-22, 8, -15, 16, 15, 16, 22, 8]).stroke({ width: 2.5, color: gold, cap: 'round', join: 'round' });
+      for (const x of [-15, 0, 15]) {
+        g.circle(x, 16, 3.2).fill({ color: 0xffe99a });
+        g.circle(x, 16, 3.2).stroke({ width: 1.5, color: goldEdge });
+      }
+    }
+
+    // Level 5: a tower-specific powered crest becomes the visual capstone.
+    if (level >= 5) {
+      const crest = n.kind === 'frost' ? 0x8ee7ff
+        : n.kind === 'bomb' ? 0x59e6c2
+          : n.kind === 'alchemist' ? 0xb58cff
+            : n.kind === 'war-drums' ? 0xffb24a
+              : n.kind === 'sniper' ? 0xff6b6b
+                : 0xffdf70;
+      g.circle(0, 9, 13).fill({ color: crest, alpha: 0.16 });
+      g.poly([0, -5, 8, 8, 0, 20, -8, 8]).fill({ color: crest });
+      g.poly([0, -5, 8, 8, 0, 20, -8, 8]).stroke({ width: 2.5, color: mixColor(crest, 0x000000, 0.45), join: 'round' });
+      g.poly([-2, 1, 2, 7, -1, 12]).stroke({ width: 2, color: 0xffffff, alpha: 0.8, cap: 'round' });
+    }
   }
 
   /** Level pips under the base: filled gold = earned, hollow = remaining. */

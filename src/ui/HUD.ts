@@ -209,13 +209,13 @@ export class HUD {
 
   /** Called every frame; writes to the DOM only when values change. */
   update(state: GameState, opts: { paused: boolean; muted: boolean }): void {
-    const hpText = `❤️ ${Math.round(state.baseHp)}/${state.baseMaxHp}`;
+    const hpText = `${Math.round(state.baseHp)}/${state.baseMaxHp}`;
     if (hpText !== this.lastHp) {
       this.lastHp = hpText;
       this.hp.textContent = hpText;
       this.hp.classList.toggle('low', state.baseMaxHp > 0 && state.baseHp / state.baseMaxHp <= 0.25);
     }
-    const goldText = `💰 ${state.gold}`;
+    const goldText = `${state.gold}`;
     if (goldText !== this.lastGold) {
       this.lastGold = goldText;
       this.goldEl.textContent = goldText;
@@ -342,7 +342,7 @@ export class HUD {
       : `<button class="btn btn-primary btn-big" data-action="play">▶ PLAY</button>`;
     const card = this.mountCard(
       'menu',
-      `<div class="game-title">🏰 SWARMGUARD</div>
+      `<div class="game-title"><span class="game-mark" aria-hidden="true"><i></i></span><span>SWARMGUARD</span></div>
        <div class="game-subtitle">${inGame ? 'Paused — pick a map, challenge or settings' : 'Defend the Core'}</div>
        <div class="menu-best">Highest wave: <strong>${this.highestWave}</strong> &nbsp;💎 <strong>${this.callbacks.getGems()}</strong> &nbsp;★ <strong>${this.callbacks.getTotalStars()}</strong></div>
        ${picker}
@@ -350,10 +350,12 @@ export class HUD {
         ${challenges}
         ${difficulty}
         ${primary}
-       <button class="btn" data-action="talents">✨ TALENTS</button>
-       <button class="btn" data-action="achievements">🏆 ACHIEVEMENTS</button>
-       <button class="btn" data-action="settings">⚙ SETTINGS</button>
-       <div class="menu-hint">Earn 💎 from runs to buy permanent ✨ Talents • Space pauses</div>`,
+       <div class="menu-actions">
+         <button class="btn" data-action="talents">TALENTS</button>
+         <button class="btn" data-action="achievements">ACHIEVEMENTS</button>
+         <button class="btn" data-action="settings">SETTINGS</button>
+       </div>
+       <div class="menu-hint">Earn gems from runs to unlock permanent Talents <span>•</span> Space pauses</div>`,
     );
     card.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((btn) => {
       btn.addEventListener('click', () => {
