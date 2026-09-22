@@ -18,7 +18,7 @@ import { CHALLENGES, DEFAULT_CHALLENGE, getChallenge } from './config/challenges
 import { ENEMIES, isBossType } from './config/enemies';
 import type { WaveDefinition } from './config/waves';
 import { Game, type SpeedSetting } from './game/Game';
-import { GameStatus } from './game/GameState';
+import { GameStatus, DIFFICULTIES, DIFFICULTY_MODIFIERS, type Difficulty } from './game/GameState';
 import {
   ACHIEVEMENTS,
   AchievementStore,
@@ -146,12 +146,14 @@ async function boot(): Promise<void> {
   if (!renderer?.app?.renderer) throw new Error('[swarmguard] Renderer.create did not produce app.renderer');
   let selectedMapId = DEFAULT_MAP.id;
   let selectedChallengeId = DEFAULT_CHALLENGE.id;
+  let selectedDifficulty: Difficulty = 'normal';
   const profile = new Profile();
   const game = new Game(
     1337,
     getMap(selectedMapId),
     getChallenge(selectedChallengeId),
     profile.modifiers(),
+    selectedDifficulty,
   );
   const worldView = new WorldView(renderer, game, getMap(selectedMapId));
   const achievements = new AchievementStore();
@@ -231,6 +233,7 @@ async function boot(): Promise<void> {
       },
       onSelectMap: (id: string) => selectMap(id),
       onSelectChallenge: (id: string) => selectChallenge(id),
+      onSelectDifficulty: (id: string) => selectDifficulty(id),
       getAchievements: () =>
         ACHIEVEMENTS.map((a) => ({
           name: a.name,
@@ -266,6 +269,12 @@ async function boot(): Promise<void> {
     selectedMapId,
     CHALLENGES.map((c) => ({ id: c.id, name: c.name, description: c.description })),
     selectedChallengeId,
+    DIFFICULTIES.map((id) => ({
+      id,
+      name: id.charAt(0).toUpperCase() + id.slice(1),
+      description: describeDifficulty(id),
+    })),
+    selectedDifficulty,
   );
 
   const panels = new Panels(panelSlot, game, audio, {
@@ -544,7 +553,7 @@ async function boot(): Promise<void> {
     achievements.recordMap(map.id);
     baseDamaged = false;
     // Seed the run with the player's permanent talent bonuses.
-    game.newRun(map, getChallenge(challengeId), game.state.seed, profile.modifiers());
+    game.newRun(map, getChallenge(challengeId), game.state.seed, profile.modifiers(), selectedDifficulty);
     worldView.setMap(map);
     prevHp.clear();
     prevProjectiles.clear();
@@ -568,6 +577,22 @@ async function boot(): Promise<void> {
     audio.play('click');
     selectedChallengeId = getChallenge(id).id;
     applyRun(getMap(selectedMapId), selectedChallengeId);
+  }
+
+  function selectDifficulty(id: string): void {
+    audio.play('click');
+    selectedDifficulty = id as Difficulty;
+    applyRun(getMap(selectedMapId), selectedChallengeId);
+  }
+
+  function describeDifficulty(id: Difficulty): string {
+    const m = DIFFICULTY_MODIFIERS[id];
+    const parts: string[] = [];
+    if (m.hpMult > 1) parts.push(`HP ×${m.hpMult.toFixed(1)}`);
+    if (m.spawnRateMult > 1) parts.push(`spawns +${Math.round((m.spawnRateMult - 1) * 100)}%`);
+    if (m.enemyRegenPerSec) parts.push(`enemy regen ${m.enemyRegenPerSec}/s`);
+    if (m.coreHpDrainPerSec) parts.push(`core drains ${m.coreHpDrainPerSec}/s`);
+    return parts.join(', ') || 'standard';
   }
 
   function unlockAchievement(id: string): void {

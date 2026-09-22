@@ -529,3 +529,47 @@ describe('spearman', () => {
     }
   });
 });
+
+describe('difficulty scaling', () => {
+  it('normal applies no extra multipliers', () => {
+    const g = new Game(1);
+    g.startGame();
+    g.startWave();
+    expect(g.state.waveHpMult).toBe(1);
+  });
+  it('hard doubles enemy HP and boosts spawns', () => {
+    const g = new Game(2, undefined, undefined, undefined, 'hard');
+    g.startGame();
+    g.startWave();
+    expect(g.state.waveHpMult).toBe(1.5);
+    expect(g.state.spawnIntervalSec).toBeLessThan(0.15);
+  });
+  it('expert adds enemy regen', () => {
+    const g = new Game(3, undefined, undefined, undefined, 'expert');
+    g.startGame();
+    g.state.gold = 10000;
+    const t = g.buildTower('slot-1', 'crossbow');
+    g.startWave();
+    const e = makeEnemy('grunt', 1, 1, g.state.map.spawn);
+    e.hp = e.maxHp - 5;
+    g.state.enemies = [e];
+    g.update(1);
+    expect(e.hp).toBe(e.maxHp - 4);
+  });
+  it('nightmare drains core HP over time', () => {
+    const g = new Game(4, undefined, undefined, undefined, 'nightmare');
+    g.startGame();
+    const hp = g.state.baseHp;
+    g.update(5);
+    expect(g.state.baseHp).toBeLessThan(hp);
+  });
+  it('chaos drains core fastest', () => {
+    const gNorm = new Game(5, undefined, undefined, undefined, 'normal');
+    gNorm.startGame();
+    const gChaos = new Game(5, undefined, undefined, undefined, 'chaos');
+    gChaos.startGame();
+    gNorm.update(2);
+    gChaos.update(2);
+    expect(gChaos.state.baseHp).toBeLessThan(gNorm.state.baseHp);
+  });
+});

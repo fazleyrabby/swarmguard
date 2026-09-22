@@ -60,6 +60,7 @@ export interface HudCallbacks {
   onSettingsChange: (settings: GameSettings) => void;
   onSelectMap: (id: string) => void;
   onSelectChallenge: (id: string) => void;
+  onSelectDifficulty: (id: string) => void;
   getAchievements: () => AchievementView[];
   /** Persistent gems + stars shown in the menu/talents screens. */
   getGems: () => number;
@@ -109,6 +110,8 @@ export class HUD {
   private selectedMapId: string;
   private challenges: ChallengeOption[];
   private selectedChallengeId: string;
+  private difficulties: { id: string; name: string; description: string }[];
+  private selectedDifficultyId: string;
 
   private top = el('ui');
   private hp = el('hud-hp');
@@ -150,6 +153,8 @@ export class HUD {
     selectedMapId = maps[0]?.id ?? '',
     challenges: ChallengeOption[] = [],
     selectedChallengeId = challenges[0]?.id ?? '',
+    difficulties: { id: string; name: string; description: string }[] = [],
+    selectedDifficultyId = difficulties[0]?.id ?? '',
   ) {
     this.callbacks = callbacks;
     this.settings = { ...settings };
@@ -157,6 +162,8 @@ export class HUD {
     this.selectedMapId = selectedMapId;
     this.challenges = challenges;
     this.selectedChallengeId = selectedChallengeId;
+    this.difficulties = difficulties;
+    this.selectedDifficultyId = selectedDifficultyId;
     this.speedBtns = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-speed]'));
 
     this.menuBtn.addEventListener('click', () => callbacks.onMenu());
@@ -202,7 +209,7 @@ export class HUD {
 
   /** Called every frame; writes to the DOM only when values change. */
   update(state: GameState, opts: { paused: boolean; muted: boolean }): void {
-    const hpText = `❤️ ${state.baseHp}/${state.baseMaxHp}`;
+    const hpText = `❤️ ${Math.round(state.baseHp)}/${state.baseMaxHp}`;
     if (hpText !== this.lastHp) {
       this.lastHp = hpText;
       this.hp.textContent = hpText;
@@ -321,6 +328,15 @@ export class HUD {
     const challenges = challengeButtons
       ? `<div class="challenge-label">Challenge</div><div class="challenge-picker">${challengeButtons}</div>`
       : '';
+    const diffButtons = this.difficulties
+      .map((d) => {
+        const active = d.id === this.selectedDifficultyId ? ' active' : '';
+        return `<button class="difficulty-btn${active}" data-difficulty="${d.id}" title="${d.description}">${d.name}</button>`;
+      })
+      .join('');
+    const difficulty = diffButtons
+      ? `<div class="difficulty-label">Difficulty</div><div class="difficulty-picker">${diffButtons}</div>`
+      : '';
     const primary = inGame
       ? `<button class="btn btn-primary btn-big" data-action="resume">▶ RESUME</button>`
       : `<button class="btn btn-primary btn-big" data-action="play">▶ PLAY</button>`;
@@ -330,9 +346,10 @@ export class HUD {
        <div class="game-subtitle">${inGame ? 'Paused — pick a map, challenge or settings' : 'Defend the Core'}</div>
        <div class="menu-best">Highest wave: <strong>${this.highestWave}</strong> &nbsp;💎 <strong>${this.callbacks.getGems()}</strong> &nbsp;★ <strong>${this.callbacks.getTotalStars()}</strong></div>
        ${picker}
-       <div class="hint-line">★ per map: win · ★★ keep ≥50% Core · ★★★ untouched</div>
-       ${challenges}
-       ${primary}
+        <div class="hint-line">★ per map: win · ★★ keep ≥50% Core · ★★★ untouched</div>
+        ${challenges}
+        ${difficulty}
+        ${primary}
        <button class="btn" data-action="talents">✨ TALENTS</button>
        <button class="btn" data-action="achievements">🏆 ACHIEVEMENTS</button>
        <button class="btn" data-action="settings">⚙ SETTINGS</button>
@@ -362,6 +379,19 @@ export class HUD {
         }
         this.selectedChallengeId = id;
         this.callbacks.onSelectChallenge(id);
+        this.showMenu(false);
+      });
+    });
+    card.querySelectorAll<HTMLButtonElement>('[data-difficulty]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.difficulty;
+        if (!id) return;
+        if (id === this.selectedDifficultyId) {
+          this.showMenu(this.menuInGame);
+          return;
+        }
+        this.selectedDifficultyId = id;
+        this.callbacks.onSelectDifficulty(id);
         this.showMenu(false);
       });
     });

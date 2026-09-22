@@ -9,6 +9,46 @@ import { resetEntityIds } from './entities';
 import type { EnemyType } from '../config/enemies';
 import { NEUTRAL_MODIFIERS, type RunModifiers } from './profile';
 
+export const DIFFICULTIES = ['normal', 'hard', 'expert', 'nightmare', 'chaos'] as const;
+export type Difficulty = (typeof DIFFICULTIES)[number];
+
+export interface DifficultyModifiers {
+  /** Enemy HP multiplier. */
+  hpMult: number;
+  /** Core damage multiplier. */
+  coreDamageMult: number;
+  /** Spawn rate multiplier. */
+  spawnRateMult: number;
+  /** Seconds of HP drain per second (chaos/nightmare core leak). */
+  coreHpDrainPerSec?: number;
+  /** Enemies heal this much HP per second. */
+  enemyRegenPerSec?: number;
+  /** Poison aura radius around the core (nightmare+). */
+  coreAuraRadius?: number;
+}
+
+export const DIFFICULTY_MODIFIERS: Record<Difficulty, DifficultyModifiers> = {
+  normal: { hpMult: 1, coreDamageMult: 1, spawnRateMult: 1 },
+  hard: { hpMult: 1.5, coreDamageMult: 1.2, spawnRateMult: 1.2 },
+  expert: { hpMult: 2, coreDamageMult: 1.5, spawnRateMult: 1.4, enemyRegenPerSec: 1 },
+  nightmare: {
+    hpMult: 3,
+    coreDamageMult: 2,
+    spawnRateMult: 1.6,
+    enemyRegenPerSec: 2,
+    coreHpDrainPerSec: 1,
+    coreAuraRadius: 150,
+  },
+  chaos: {
+    hpMult: 5,
+    coreDamageMult: 3,
+    spawnRateMult: 2,
+    enemyRegenPerSec: 5,
+    coreHpDrainPerSec: 3,
+    coreAuraRadius: 200,
+  },
+};
+
 export enum GameStatus {
   MENU = 'MENU',
   PREPARATION = 'PREPARATION',
@@ -25,6 +65,8 @@ export interface GameState {
   map: MapDefinition;
   /** Active challenge modifiers. */
   challenge: ChallengeDefinition;
+  /** Player-selected difficulty (spec §99). */
+  difficulty: Difficulty;
   /** Permanent talent bonuses for this run. */
   mods: RunModifiers;
   /** Status to restore on resume() after a pause. */
@@ -76,6 +118,7 @@ export function createInitialState(
   map: MapDefinition = DEFAULT_MAP,
   challenge: ChallengeDefinition = DEFAULT_CHALLENGE,
   mods: RunModifiers = NEUTRAL_MODIFIERS,
+  difficulty: Difficulty = 'normal',
 ): GameState {
   resetEntityIds();
   const baseHp = (challenge.baseHp ?? map.baseHp) + mods.coreHpBonus;
@@ -84,6 +127,7 @@ export function createInitialState(
     map,
     challenge,
     mods,
+    difficulty,
     wave: 0,
     gold: (challenge.startingGold ?? map.startingGold) + mods.startGoldBonus,
     goldAtWaveStart: 0,
