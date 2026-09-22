@@ -45,6 +45,8 @@ import {
 } from './systems/UpgradeSystem';
 import { buildSpawnQueue, generateBossRushWave, generateWave } from './systems/WaveGenerator';
 import { updateEnemyAttacks } from './systems/EnemyAttackSystem';
+import { updateDifficulty, applyDifficultyToWave } from './systems/DifficultySystem';
+import type { Difficulty } from './GameState';
 
 /**
  * Default targeting per tower type.
@@ -84,8 +86,9 @@ export class Game {
     map: MapDefinition = DEFAULT_MAP,
     challenge: ChallengeDefinition = DEFAULT_CHALLENGE,
     mods: RunModifiers = NEUTRAL_MODIFIERS,
+    difficulty: Difficulty = 'normal',
   ) {
-    this.state = createInitialState(seed, map, challenge, mods);
+    this.state = createInitialState(seed, map, challenge, mods, difficulty);
     this.rng = mulberry32(seed);
     this.bestWave = readBestWave();
   }
@@ -99,8 +102,9 @@ export class Game {
     challenge: ChallengeDefinition = this.state.challenge,
     seed = this.state.seed,
     mods: RunModifiers = this.state.mods,
+    difficulty: Difficulty = this.state.difficulty,
   ): void {
-    Object.assign(this.state, createInitialState(seed, map, challenge, mods));
+    Object.assign(this.state, createInitialState(seed, map, challenge, mods, difficulty));
   }
 
   // ---- lifecycle ----
@@ -135,6 +139,7 @@ export class Game {
     initWaveSpawning(s, def, buildSpawnQueue(def, s.seed));
     if (ch.enemyHpMult) s.waveHpMult *= ch.enemyHpMult;
     if (ch.enemySpeedMult) s.waveSpeedMult *= ch.enemySpeedMult;
+    applyDifficultyToWave(s);
     s.status = GameStatus.WAVE_ACTIVE;
     this.events.emit('wave:started', def);
     return true;
@@ -160,6 +165,7 @@ export class Game {
     s.time += dt;
 
     updateSpawn(s, dt);
+    updateDifficulty(dt, s);
     updateAbilities(s, dt, this.events);
     updateEnemyAttacks(s, dt, this.events);
     updateMovement(s, dt, this.events);

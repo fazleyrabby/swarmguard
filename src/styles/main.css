@@ -1008,6 +1008,43 @@ body {
   background: rgba(255, 201, 60, 0.2);
 }
 
+.difficulty-label {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.difficulty-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.difficulty-btn {
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 6px 10px;
+  border: 2px solid #2b2440;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ink);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 12px;
+  transition: transform 0.08s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.difficulty-btn:hover {
+  transform: translateY(-1px);
+}
+
+.difficulty-btn.active {
+  border-color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.2);
+}
+
 .achv-list {
   display: flex;
   flex-direction: column;
