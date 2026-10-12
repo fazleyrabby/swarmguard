@@ -72,6 +72,8 @@ export interface Enemy {
   slowFactor: number;
   /** Active poison effects, keyed by source tower. */
   poisonEffects?: PoisonEffect[];
+  /** Remaining Freeze-spell time (sec): no movement, no attacks. */
+  frozenTimeLeft?: number;
   /** Tower-attack range in world px (spearman). Undefined = walks past towers. */
   attackRange?: number;
   /** Damage dealt per stab to the engaged tower. */
@@ -125,6 +127,12 @@ export interface Projectile {
   vx: number;
   vy: number;
   targetId: number;
+  /** Launch point — with the aim point it gives lobbed shots their arc. */
+  originX: number;
+  originY: number;
+  /** Last known target position; splash shots still land here if it dies. */
+  aimX: number;
+  aimY: number;
   damage: number;
   speed: number;
   splashRadius?: number;
@@ -137,6 +145,18 @@ export interface Projectile {
   /** Seconds since fired — strays fizzle at maxAge. */
   age: number;
   maxAge: number;
+}
+
+/** A Meteor spell in flight: lands and deals splash damage at `timeLeft <= 0`. */
+export interface MeteorStrike {
+  id: number;
+  x: number;
+  y: number;
+  /** Total fall time (sec), kept so the renderer can show progress. */
+  delay: number;
+  timeLeft: number;
+  damage: number;
+  radius: number;
 }
 
 export interface BuildSlot {
@@ -152,6 +172,7 @@ export interface BuildSlot {
 let enemyCounter = 1;
 let towerCounter = 1;
 let projectileCounter = 1;
+let meteorCounter = 1;
 
 export function nextEnemyId(): number {
   return enemyCounter++;
@@ -165,10 +186,15 @@ export function nextProjectileId(): number {
   return projectileCounter++;
 }
 
+export function nextMeteorId(): number {
+  return meteorCounter++;
+}
+
 export function resetEntityIds(): void {
   enemyCounter = 1;
   towerCounter = 1;
   projectileCounter = 1;
+  meteorCounter = 1;
 }
 
 /** Re-export for systems that need current-level stats typing. */

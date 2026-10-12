@@ -4,6 +4,7 @@
  * resolves impacts (single-target, cannon falloff splash, bomb slow).
  */
 import { ENEMIES } from '../../config/enemies';
+import { SPELLS } from '../../config/spells';
 import {
   CANNON_FALLOFF,
   TOWERS,
@@ -55,6 +56,8 @@ export function updateCombat(
   events: EventBus,
   pool: ProjectilePool,
 ): void {
+  // Rally spell: every tower attacks faster while it lasts.
+  const rally = state.rallyTimeLeft > 0 ? 1 + (SPELLS.rally.attackSpeedBonus ?? 0) : 1;
   for (const tower of state.towers) {
     const stats = getTowerLevel(tower.type, tower.level, tower.branch);
     if (TOWERS[tower.type].projectile === 'none') continue;
@@ -83,7 +86,7 @@ export function updateCombat(
     const kind = TOWERS[tower.type].projectile as ProjectileKind;
     const speed = PROJECTILE_SPEEDS[kind];
     const attackSpeed =
-      stats.attackSpeed * (1 + (tower.auraAttackSpeedBonus ?? 0));
+      stats.attackSpeed * (1 + (tower.auraAttackSpeedBonus ?? 0)) * rally;
     const damage =
       applyDamage(stats.damage, state.mods) *
       (state.challenge.towerDamageMult ?? 1) *
@@ -96,6 +99,10 @@ export function updateCombat(
       vx: (dx / dist) * speed,
       vy: (dy / dist) * speed,
       targetId: target.id,
+      originX: tower.x,
+      originY: tower.y,
+      aimX: target.x,
+      aimY: target.y,
       damage,
       speed,
       splashRadius: stats.splashRadius,

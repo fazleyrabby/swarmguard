@@ -4,7 +4,8 @@
  */
 import { DEFAULT_MAP, type MapDefinition } from '../config/maps';
 import { DEFAULT_CHALLENGE, type ChallengeDefinition } from '../config/challenges';
-import type { BuildSlot, Enemy, Projectile, Tower } from './entities';
+import type { SpellId } from '../config/spells';
+import type { BuildSlot, Enemy, MeteorStrike, Projectile, Tower } from './entities';
 import { resetEntityIds } from './entities';
 import type { EnemyType } from '../config/enemies';
 import { NEUTRAL_MODIFIERS, type RunModifiers } from './profile';
@@ -83,6 +84,12 @@ export interface GameState {
   towers: Tower[];
   projectiles: Projectile[];
   buildSlots: BuildSlot[];
+  /** Seconds until each player spell can be cast again (0 = ready). */
+  spellCooldowns: Record<SpellId, number>;
+  /** Meteor spells still falling. */
+  meteors: MeteorStrike[];
+  /** Remaining Rally-spell time (sec): all towers attack faster. */
+  rallyTimeLeft: number;
   selectedTowerId?: string;
   /** Game-speed multiplier: 1 | 2 | 3 (spec §36). 0/paused is modelled via status. */
   speedMultiplier: number;
@@ -143,6 +150,9 @@ export function createInitialState(
       y: s.y,
       occupied: false,
     })),
+    spellCooldowns: { meteor: 0, freeze: 0, rally: 0 },
+    meteors: [],
+    rallyTimeLeft: 0,
     selectedTowerId: undefined,
     speedMultiplier: 1,
     spawnQueue: [],

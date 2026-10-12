@@ -15,6 +15,8 @@ export interface RenderEnemy {
   distanceTraveled?: number;
   /** Active poison effects for the green overlay / tint. */
   poisonEffects?: unknown[];
+  /** Remaining Freeze-spell time; > 0 tints the body icy blue. */
+  frozenTimeLeft?: number;
 }
 
 /** Structural tower view — `main.ts` maps sim towers via `toRenderState()`. */
@@ -42,6 +44,8 @@ export interface RenderProjectile {
   angle: number;
   /** Only for Alchemist vials that explode into a poison cloud on expiry. */
   poison?: boolean;
+  /** Height above the ground in px for lobbed shots (see `lobHeight`). */
+  lift?: number;
 }
 
 interface EnemyNode {
@@ -58,6 +62,7 @@ interface EnemyNode {
   lastHpVisible: boolean;
   lastHasShield: boolean;
   lastPoisoned: boolean;
+  lastFrozen: boolean;
   type: string;
   textureName: string;
   /** Motion state. */
@@ -99,12 +104,28 @@ interface ProjectileNode {
   sprite: PIXI.Sprite;
   shadow: PIXI.Sprite;
   kind: string;
+  /** Last drawn sprite position — lobbed shots point along their arc. */
+  lastX: number;
+  lastY: number;
 }
 
 /** Soft baked ground shadows read at this fraction of their per-type scale. */
 const SOFT_SHADOW = 0.34;
 /** Weapon height above the tower origin — sits on the drum's top face. */
 const TOP_RISE = -14;
+/** Body tint while frozen by the Freeze spell. */
+const FROZEN_TINT = 0x8fd3ff;
+
+/**
+ * Height of a lobbed shot `progress` (0–1) of the way along a `span`-px
+ * flight: a parabola peaking mid-flight, starting at the tower's muzzle
+ * height and touching the ground exactly on arrival.
+ */
+export function lobHeight(progress: number, span: number): number {
+  const t = Math.min(1, Math.max(0, progress));
+  const peak = Math.min(120, Math.max(26, span * 0.32));
+  return -TOP_RISE * (1 - t) + peak * 4 * t * (1 - t);
+}
 
 function texKey(kind: string, prefix: string, fallback: string): string {
   switch (kind) {
@@ -370,6 +391,12 @@ export class EntityView {
         n.poison.alpha = poisoned ? 0.6 : 0;
       }
 
+      const frozen = (e.frozenTimeLeft ?? 0) > 0;
+      if (frozen !== n.lastFrozen) {
+        n.lastFrozen = frozen;
+        n.body.tint = frozen ? FROZEN_TINT : 0xffffff;
+      }
+
       n.root.position.set(e.x, e.y);
       n.root.zIndex = e.y; // 2.5D depth: lower on screen draws in front
 
@@ -503,6 +530,7 @@ export class EntityView {
     const poison = pooled?.poison ?? new PIXI.Sprite(this.tex.get('poison-overlay'));
     poison.anchor.set(0.5);
     poison.alpha = 0;
+    body.tint = 0xffffff;
     // Fresh nodes get children mounted once; pooled nodes ensure order.
     if (!pooled) {
       root.addChild(shadow, body, flash, poison, hpBar);
@@ -524,6 +552,7 @@ export class EntityView {
       lastHpVisible: false,
       lastHasShield: false,
       lastPoisoned: false,
+      lastFrozen: false,
       type: vis.key,
       textureName: vis.texture,
       popScale: 0.2,
@@ -775,7 +804,7 @@ export class EntityView {
         shadow.eventMode = 'none';
         shadow.anchor.set(0.5);
         shadow.alpha = 0.4;
-        n = { sprite, shadow, kind: p.kind };
+        n = { sprite, shadow, kind: p.kind, lastX: Number.NaN, lastY: Number.NaN };
         if (shadow.parent !== this.projectileLayer) this.projectileLayer.addChild(shadow);
         if (sprite.parent !== this.projectileLayer) this.projectileLayer.addChild(sprite);
         sprite.visible = true;
@@ -786,13 +815,33 @@ export class EntityView {
         n.kind = p.kind;
         n.sprite.texture = this.tex.get(p.kind) ?? PIXI.Texture.WHITE;
       }
-      n.sprite.position.set(p.x, p.y);
-      n.sprite.rotation = p.angle;
-      if (p.kind === 'bomb') n.sprite.scale.set(1 + Math.sin(p.x * 0.05 + p.y * 0.05) * 0.08);
-      // Ground shadow tracks the shot: the vertical gap sells flight height.
       const sh = p.kind === 'arrow' || p.kind === 'bullet' ? 0.26 : 0.34;
-      n.shadow.position.set(p.x + 2, p.y + 10);
-      n.shadow.scale.set(sh, sh * 0.55);
+      if (p.lift === undefined) {
+        // Flat shot: a fixed gap to the ground shadow sells flight height.
+        n.sprite.position.set(p.x, p.y);
+        n.sprite.rotation = p.angle;
+        n.sprite.scale.set(1);
+        n.shadow.position.set(p.x + 2, p.y + 10);
+        n.shadow.scale.set(sh, sh * 0.55);
+        n.shadow.alpha = 0.4;
+        continue;
+      }
+      // Lobbed shot: the sprite rides the arc while its shadow stays on the
+      // ground, shrinking and fading as the shot climbs away from it.
+      const sy = p.y - p.lift;
+      const dx = p.x - n.lastX;
+      const dy = sy - n.lastY;
+      n.sprite.position.set(p.x, sy);
+      // Point along the arc on screen, not just the ground heading.
+      n.sprite.rotation = dx * dx + dy * dy > 0.01 ? Math.atan2(dy, dx) : p.angle;
+      n.lastX = p.x;
+      n.lastY = sy;
+      const pulse = p.kind === 'bomb' ? 1 + Math.sin(p.x * 0.05 + p.y * 0.05) * 0.08 : 1;
+      n.sprite.scale.set((1 + p.lift / 300) * pulse);
+      const air = Math.min(1, p.lift / 120);
+      n.shadow.position.set(p.x + 2 + p.lift * 0.1, p.y + 4);
+      n.shadow.scale.set(sh * (1 - air * 0.4), sh * 0.55 * (1 - air * 0.4));
+      n.shadow.alpha = 0.5 - air * 0.28;
     }
     for (const [id, n] of this.projectiles) {
       if (!seen.has(id)) {

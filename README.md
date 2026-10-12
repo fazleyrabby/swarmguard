@@ -11,6 +11,7 @@ Built with **PixiJS + TypeScript + Vite**. No backend, no accounts, no external 
 - **Five tower types** — Crossbow (fast single-target), Cannon (heavy splash), Bomb Tower (large AoE + slow), Frost Tower (AoE chill), Sniper (extreme range, huge single-target).
 - **5 upgrade levels** per tower, with live stat/cost previews and a sell-for-70% option.
 - **Upgrade branches** — at level 3, Crossbow (Rapid Fire / Arbalest) and Cannon (Mortar / Shrapnel) specialize into distinct playstyles.
+- **Three spells** — Meteor (blast damage), Freeze (stops enemies in place) and Rally (all towers attack 60% faster), each on its own cooldown that only recharges while a wave is running.
 - **Three maps** — Meadow Vale, Serpent Canyon and Frozen Pass, each with its own path layout, build slots and visual theme. Pick one from the main menu.
 - **Three enemy types** — Grunt, Runner, Tank — with distinct HP, speed, damage and bounty.
 - **Boss waves** — every 10th wave sends a boss with an always-visible health bar and a screen-shaking death. Variants cycle by decade: **Bulwark** (absorbs damage with a shield), **Leech** (regenerates HP), **Herald** (hastens nearby enemies).
@@ -19,7 +20,7 @@ Built with **PixiJS + TypeScript + Vite**. No backend, no accounts, no external 
 - **10 persistent achievements** with unlock toasts and a viewer on the main menu.
 - **Live total-visit counter** in the footer — backed by the self-hosted homelab `view-counter` API (`views.fazleyrabbi.xyz`), counting once per session and skipping dev/bots.
 - **Four targeting modes** — First, Nearest, Strongest, Weakest.
-- **Game feel** — distance-synced walk gaits (squash/stretch, hop, lean-into-motion, grounded shadows), particles, screen shake, floating damage numbers, hit/death FX, generated WebAudio sound effects.
+- **Game feel** — distance-synced walk gaits (squash/stretch, hop, lean-into-motion, grounded shadows), cannonballs, bombs and vials that lob in an arc over their ground shadow, particles, screen shake, floating damage numbers, hit/death FX, generated WebAudio sound effects.
 - **Polish** — responsive full-height layout, fullscreen toggle, portrait zoom, settings, pause/speed controls (1x–3x), game-over and victory screens, highest-wave persistence.
 - **Performance** — baked textures, pooled sprites/projectiles, waypoint movement (no per-enemy pathfinding), targeting 60 FPS with 300+ enemies.
 
@@ -63,7 +64,8 @@ Then open the printed local URL (default <http://localhost:5173>).
 | Click tower        | Open the upgrade / sell panel             |
 | `Space`            | Pause / resume                            |
 | `1` / `2` / `3`    | Game speed 1x / 2x / 3x                   |
-| `Esc`              | Close the current panel                   |
+| `Q` / `W` / `E`    | Meteor / Freeze / Rally — Meteor and Freeze then need a click on the map |
+| `Esc`              | Close the current panel / cancel a spell  |
 
 ### Dev-only cheats (`F` keys)
 

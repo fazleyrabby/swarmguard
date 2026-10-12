@@ -58,6 +58,7 @@ export function updateEnemyAttacks(
   for (const enemy of state.enemies) {
     if (!enemy.alive) continue;
     if (enemy.attackRange === undefined || enemy.attackDamage === undefined) continue;
+    if (enemy.frozenTimeLeft !== undefined && enemy.frozenTimeLeft > 0) continue;
 
     let tower =
       enemy.attackTargetId !== undefined

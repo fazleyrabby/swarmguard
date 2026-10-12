@@ -16,6 +16,7 @@ import { AudioManager } from './audio/AudioManager';
 import { MAPS, DEFAULT_MAP, getMap, type MapDefinition } from './config/maps';
 import { CHALLENGES, DEFAULT_CHALLENGE, getChallenge } from './config/challenges';
 import { ENEMIES, isBossType } from './config/enemies';
+import { SPELLS, SPELL_IDS, type SpellId } from './config/spells';
 import type { WaveDefinition } from './config/waves';
 import { Game, type SpeedSetting } from './game/Game';
 import { GameStatus, DIFFICULTIES, DIFFICULTY_MODIFIERS, type Difficulty } from './game/GameState';
@@ -33,13 +34,21 @@ import {
   type TalentId,
 } from './game/profile';
 import { addGold } from './game/systems/EconomySystem';
+import { LOBBED_KINDS } from './game/systems/ProjectileSystem';
 import { makeEnemy } from './game/systems/SpawnSystem';
 import { Renderer } from './rendering/Renderer';
 import { WorldView } from './rendering/WorldView';
-import { EntityView, type RenderEnemy, type RenderProjectile, type RenderTower } from './rendering/EntityView';
+import {
+  EntityView,
+  lobHeight,
+  type RenderEnemy,
+  type RenderProjectile,
+  type RenderTower,
+} from './rendering/EntityView';
 import { Effects } from './rendering/Effects';
 import { HUD, type GameSettings } from './ui/HUD';
 import { Panels } from './ui/Panels';
+import { SpellBar } from './ui/SpellBar';
 import { initVisitorCounter } from './ui/VisitorCounter';
 
 const SETTINGS_KEY = 'swarmguard:settings';
@@ -98,6 +107,7 @@ function toRenderState(game: Game): {
   projectiles: RenderProjectile[];
 } {
   const s = game.state;
+  const rallied = s.rallyTimeLeft > 0;
   return {
     enemies: s.enemies,
     towers: s.towers.map((t) => ({
@@ -111,16 +121,26 @@ function toRenderState(game: Game): {
       hp: t.hp,
       maxHp: t.maxHp,
       auraRadius: t.auraRadius,
-      buffed: t.auraSourceTowerId !== undefined,
+      buffed: rallied || t.auraSourceTowerId !== undefined,
     })),
-    projectiles: s.projectiles.map((p) => ({
-      id: p.id,
-      kind: p.kind,
-      x: p.x,
-      y: p.y,
-      angle: Math.atan2(p.vy, p.vx),
-      poison: p.poisonDamagePerSec !== undefined && p.poisonDamagePerSec > 0,
-    })),
+    projectiles: s.projectiles.map((p) => {
+      // Lobbed shots arc between launch and aim point; the sim stays flat.
+      let lift: number | undefined;
+      if (LOBBED_KINDS.has(p.kind)) {
+        const flown = Math.hypot(p.x - p.originX, p.y - p.originY);
+        const span = flown + Math.hypot(p.aimX - p.x, p.aimY - p.y);
+        lift = lobHeight(span > 0 ? flown / span : 1, span);
+      }
+      return {
+        id: p.id,
+        kind: p.kind,
+        x: p.x,
+        y: p.y,
+        angle: Math.atan2(p.vy, p.vx),
+        poison: p.poisonDamagePerSec !== undefined && p.poisonDamagePerSec > 0,
+        lift,
+      };
+    }),
   };
 }
 
@@ -289,6 +309,64 @@ async function boot(): Promise<void> {
     onSpeed: (speed: SpeedSetting) => game.setSpeed(speed),
   });
 
+  // ------------------------------------------------------------- spells
+  // Targeted spells are "armed" first; the next tap on the map casts them.
+  let armedSpell: SpellId | null = null;
+  const spellBar = new SpellBar(requireEl('spell-bar'), (id) => selectSpell(id));
+
+  function disarmSpell(): void {
+    if (!armedSpell) return;
+    armedSpell = null;
+    gameContainer.classList.remove('spell-armed');
+    worldView.hideRange();
+  }
+
+  function selectSpell(id: SpellId): void {
+    audio.unlock();
+    if (!game.canCastSpell(id)) {
+      audio.play('error');
+      return;
+    }
+    if (!SPELLS[id].targeted) {
+      disarmSpell();
+      game.castSpell(id);
+      return;
+    }
+    audio.play('click');
+    if (armedSpell === id) {
+      disarmSpell();
+      return;
+    }
+    panels.close();
+    worldView.hideBuildConfirm();
+    worldView.hideRange();
+    armedSpell = id;
+    gameContainer.classList.add('spell-armed');
+  }
+
+  /** Blast-radius preview follows the pointer while a spell is armed. */
+  function previewSpell(e: PointerEvent): void {
+    if (!armedSpell) return;
+    const rect = renderer.app.canvas.getBoundingClientRect();
+    const { x, y } = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    worldView.showRange(x, y, SPELLS[armedSpell].radius ?? 0);
+  }
+  renderer.app.canvas.addEventListener('pointermove', previewSpell);
+  renderer.app.canvas.addEventListener('pointerdown', previewSpell);
+
+  window.addEventListener('keydown', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Escape') {
+      disarmSpell();
+      return;
+    }
+    if (game.state.status !== GameStatus.WAVE_ACTIVE) return;
+    const id = SPELL_IDS.find((s) => SPELLS[s].hotkey === e.key.toLowerCase());
+    if (id) selectSpell(id);
+  });
+
   function togglePause(): void {
     if (game.state.status === GameStatus.PAUSED) game.resume();
     else game.pause();
@@ -333,12 +411,20 @@ async function boot(): Promise<void> {
     if (e.button !== 0) return;
     if (renderer.wasDrag()) return;
     if (game.state.status === GameStatus.MENU) return;
-    // Don't let canvas-level slot picking fire while the build-confirm
-    // popup buttons are active — a tap on ✓/✕ would also resolve to a slot.
-    if (worldView.hasBuildConfirm()) return;
 
     const rect = renderer.app.canvas.getBoundingClientRect();
     const { x, y } = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+    // An armed spell owns the tap: cast it here instead of picking a slot.
+    if (armedSpell) {
+      if (game.castSpell(armedSpell, x, y)) disarmSpell();
+      else audio.play('error');
+      return;
+    }
+
+    // Don't let canvas-level slot picking fire while the build-confirm
+    // popup buttons are active — a tap on ✓/✕ would also resolve to a slot.
+    if (worldView.hasBuildConfirm()) return;
 
     let slot = null as (typeof game.state.buildSlots)[number] | null;
     let bestD2 = SLOT_PICK_R * SLOT_PICK_R;
@@ -488,6 +574,25 @@ async function boot(): Promise<void> {
     panels.refresh();
   });
 
+  game.events.on('spell:cast', (payload) => {
+    const cast = payload as { id: SpellId; x: number; y: number; radius: number };
+    if (cast.id === 'meteor') {
+      audio.play('spell-meteor');
+    } else if (cast.id === 'freeze') {
+      effects.frostBlast(cast.x, cast.y, cast.radius);
+      audio.play('spell-freeze');
+    } else {
+      for (const tower of game.state.towers) effects.rally(tower.x, tower.y);
+      audio.play('spell-rally');
+    }
+  });
+
+  game.events.on('spell:impact', (payload) => {
+    const hit = payload as { x: number; y: number; radius: number };
+    effects.meteorImpact(hit.x, hit.y, hit.radius);
+    audio.play('explosion');
+  });
+
   const finishRun = (victory: boolean): void => {
     const s = game.state;
     panels.close();
@@ -554,6 +659,7 @@ async function boot(): Promise<void> {
     baseDamaged = false;
     // Seed the run with the player's permanent talent bonuses.
     game.newRun(map, getChallenge(challengeId), game.state.seed, profile.modifiers(), selectedDifficulty);
+    disarmSpell();
     worldView.setMap(map);
     prevHp.clear();
     prevProjectiles.clear();
@@ -695,10 +801,21 @@ async function boot(): Promise<void> {
     prevProjectiles.clear();
     for (const [id, info] of curProjectiles) prevProjectiles.set(id, info);
 
+    // A wave ending (or the run) cancels any spell still being aimed.
+    if (
+      armedSpell &&
+      state.status !== GameStatus.WAVE_ACTIVE &&
+      state.status !== GameStatus.PAUSED
+    ) {
+      disarmSpell();
+    }
+
     worldView.sync();
     const rs = toRenderState(game);
     entityView.sync(rs.enemies, rs.towers, rs.projectiles, rawDt, state.time);
+    effects.syncMeteors(state.meteors);
     effects.update(rawDt, state.time);
+    spellBar.update(state, armedSpell);
     hud.update(state, {
       paused: state.status === GameStatus.PAUSED,
       muted: audio.isMuted(),

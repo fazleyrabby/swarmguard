@@ -1,7 +1,8 @@
 /**
  * Projectile system (spec §26, §47): straight homing-ish flight, object pool.
- * Projectiles steer toward a live target; when the target is gone they keep
- * their last velocity and fizzle after maxAge. Pooled to avoid GC churn.
+ * Projectiles steer toward a live target. When the target is gone, lobbed
+ * and splash shots still come down where it last stood; everything else
+ * keeps its last velocity and fizzles after maxAge. Pooled to avoid GC churn.
  */
 import { ENEMIES } from '../../config/enemies';
 import type { Enemy, Projectile, ProjectileKind } from '../entities';
@@ -15,6 +16,13 @@ export const PROJECTILE_SPEEDS: Record<ProjectileKind, number> = {
   vial: 420,
   bullet: 950,
 };
+
+/** Shots thrown in an arc: they come down where they were aimed. */
+export const LOBBED_KINDS: ReadonlySet<ProjectileKind> = new Set<ProjectileKind>([
+  'cannonball',
+  'bomb',
+  'vial',
+]);
 
 /** Base contact radius added to the enemy's own radius. */
 export const PROJECTILE_HIT_RADIUS = 6;
@@ -49,6 +57,18 @@ function findTarget(enemies: Enemy[], id: number): Enemy | undefined {
 
 function contactRadius(enemy: Enemy): number {
   return ENEMIES[enemy.type].radius + PROJECTILE_HIT_RADIUS;
+}
+
+/** First live enemy touching the projectile (strays can still connect). */
+function enemyInContact(enemies: Enemy[], p: Projectile): Enemy | undefined {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const dx = e.x - p.x;
+    const dy = e.y - p.y;
+    const r = contactRadius(e);
+    if (dx * dx + dy * dy <= r * r) return e;
+  }
+  return undefined;
 }
 
 export type ImpactHandler = (
@@ -100,19 +120,27 @@ export function updateProjectiles(
       // Homing-ish: re-aim velocity at the live target each tick.
       p.vx = (dx / dist) * p.speed;
       p.vy = (dy / dist) * p.speed;
+      p.aimX = target.x;
+      p.aimY = target.y;
+    } else if (LOBBED_KINDS.has(p.kind) || (p.splashRadius && p.splashRadius > 0)) {
+      // Target gone mid-flight: come down on its last position, hitting
+      // whoever now stands there (splash still bursts on empty ground).
+      const dx = p.aimX - p.x;
+      const dy = p.aimY - p.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist <= p.speed * delta) {
+        p.x = p.aimX;
+        p.y = p.aimY;
+        list.splice(i, 1);
+        pool.release(p);
+        onImpact(p, enemyInContact(state.enemies, p));
+        continue;
+      }
+      p.vx = (dx / dist) * p.speed;
+      p.vy = (dy / dist) * p.speed;
     } else {
       // Target gone: check contact with any live enemy (strays can connect).
-      let hit: Enemy | undefined;
-      for (const e of state.enemies) {
-        if (!e.alive) continue;
-        const dx = e.x - p.x;
-        const dy = e.y - p.y;
-        const r = contactRadius(e);
-        if (dx * dx + dy * dy <= r * r) {
-          hit = e;
-          break;
-        }
-      }
+      const hit = enemyInContact(state.enemies, p);
       if (hit) {
         p.x = hit.x;
         p.y = hit.y;

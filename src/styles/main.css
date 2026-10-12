@@ -2534,3 +2534,125 @@ body {
     min-height: 44px;
   }
 }
+
+/* ---- Spell bar: player abilities, bottom-left of the stage ---- */
+#spell-bar {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+  touch-action: manipulation;
+}
+
+.spell-btn {
+  --cd: 0;
+  position: relative;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  background: var(--command);
+  color: #f3f5ff;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(5, 8, 18, 0.34), inset 0 1px rgba(255, 255, 255, 0.08);
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.spell-btn:disabled { cursor: default; }
+.spell-btn.ready { border-color: rgba(242, 201, 76, 0.7); }
+.spell-btn.ready:hover { transform: translateY(-2px); background: var(--command-raised); }
+.spell-btn.ready:active { transform: translateY(1px); }
+
+.spell-btn.armed {
+  border-color: var(--signal);
+  background: #3a3520;
+  transform: translateY(-3px);
+  animation: spell-pulse 0.9s ease-in-out infinite;
+}
+
+.spell-btn.active {
+  border-color: var(--signal-hot);
+  animation: spell-pulse 0.9s ease-in-out infinite;
+}
+
+.spell-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 27px;
+  line-height: 1;
+}
+
+.spell-btn:disabled .spell-icon { opacity: 0.5; filter: grayscale(0.7); }
+.spell-btn.armed .spell-icon,
+.spell-btn.active .spell-icon { opacity: 1; filter: none; }
+
+/* Cooldown veil drains downward as the spell recharges. */
+.spell-veil {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 1;
+  height: calc(var(--cd) * 100%);
+  background: rgba(6, 9, 20, 0.72);
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.spell-key,
+.spell-secs {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.spell-key {
+  top: 3px;
+  left: 6px;
+  color: #aab1c9;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.spell-secs {
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes spell-pulse {
+  0%, 100% { box-shadow: 0 8px 22px rgba(5, 8, 18, 0.34), 0 0 0 0 rgba(242, 201, 76, 0.55); }
+  50% { box-shadow: 0 8px 22px rgba(5, 8, 18, 0.34), 0 0 0 6px rgba(242, 201, 76, 0); }
+}
+
+#game.spell-armed canvas { cursor: crosshair !important; }
+
+@media (hover: none) {
+  .spell-key { display: none; }
+}
+
+@media (orientation: landscape) and (max-height: 700px),
+       (max-width: 760px) {
+  #spell-bar {
+    left: max(8px, env(safe-area-inset-left));
+    bottom: 8px;
+    gap: 6px;
+  }
+  .spell-btn { width: 48px; height: 48px; border-radius: 12px; }
+  .spell-icon { font-size: 22px; }
+  .spell-secs { font-size: 17px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spell-btn { transition: none; }
+  .spell-btn.armed, .spell-btn.active { animation: none; }
+}

@@ -29,6 +29,24 @@ interface FloatText {
   active: boolean;
 }
 
+/** Structural view of a falling Meteor spell — sim `MeteorStrike` fits as-is. */
+export interface RenderMeteor {
+  x: number;
+  y: number;
+  delay: number;
+  timeLeft: number;
+  radius: number;
+}
+
+interface MeteorNode {
+  rock: PIXI.Sprite;
+  reticle: PIXI.Sprite;
+  scorch: PIXI.Sprite;
+}
+
+/** Meteors fall in from the upper-left, matching the scene's sun direction. */
+const METEOR_DROP = { x: -250, y: -560 };
+
 /**
  * Pooled juice (spec §41–43): death pops, arrow snaps, muzzle flashes,
  * cannon fire, splash explosions, placement poofs, base-hit flashes,
@@ -47,6 +65,7 @@ export class Effects {
   private rings: Ring[] = [];
   private numbers: FloatText[] = [];
   private flashes: { sprite: PIXI.Sprite; life: number; maxLife: number }[] = [];
+  private meteors: MeteorNode[] = [];
   private dotTex: PIXI.Texture = PIXI.Texture.WHITE;
   private ringTex: PIXI.Texture = PIXI.Texture.WHITE;
   private starTex: PIXI.Texture = PIXI.Texture.WHITE;
@@ -71,6 +90,27 @@ export class Effects {
     this.dotTex = bakeTex(this.dotG());
     this.ringTex = bakeTex(this.ringG());
     this.starTex = bakeTex(this.starG());
+    const meteorTex = bakeTex(this.meteorG());
+    const reticleTex = bakeTex(this.reticleG());
+
+    // Ground markers first so embers and the rock itself draw over them.
+    for (let i = 0; i < 4; i++) {
+      const scorch = new PIXI.Sprite(this.dotTex);
+      const reticle = new PIXI.Sprite(reticleTex);
+      const rock = new PIXI.Sprite(meteorTex);
+      scorch.tint = 0x1c1917;
+      reticle.tint = 0xff6b35;
+      // Anchor on the rock's core (not the tail) so it lands on the target.
+      rock.anchor.set(66 / 88, 0.5);
+      rock.rotation = Math.atan2(-METEOR_DROP.y, -METEOR_DROP.x);
+      for (const s of [scorch, reticle]) s.anchor.set(0.5);
+      for (const s of [scorch, reticle, rock]) {
+        s.visible = false;
+        s.eventMode = 'none';
+      }
+      this.fx.addChild(scorch, reticle);
+      this.meteors.push({ rock, reticle, scorch });
+    }
 
     for (let i = 0; i < 420; i++) {
       const s = new PIXI.Sprite(this.dotTex);
@@ -99,6 +139,7 @@ export class Effects {
       this.fx.addChild(s);
       this.flashes.push({ sprite: s, life: 0, maxLife: 0.12 });
     }
+    for (const m of this.meteors) this.fx.addChild(m.rock);
     for (let i = 0; i < 28; i++) {
       const t = new PIXI.Text({
         text: '',
@@ -328,6 +369,74 @@ export class Effects {
     if (this.shakeOn) this.onShake?.(0.15);
   }
 
+  /** Meteor spell landing: the biggest blast in the game. */
+  meteorImpact(x: number, y: number, radius = 120): void {
+    this.blast(x, y, radius, [0xff6b35, 0xfbbf24, 0x7c2d12, 0x44403c], 34, 0.6);
+    this.flash(x, y, radius * 0.95, 0xffffff, 0.16);
+    this.ring(x, y, 20, radius * 1.6, 0xff6b35, 0.6);
+  }
+
+  /** Rally spell: a golden war-cry ring + rising sparks on one tower. */
+  rally(x: number, y: number): void {
+    this.ring(x, y, 12, 66, 0xfbbf24, 0.55);
+    for (let i = 0; i < 5; i++) {
+      const p = this.spawn();
+      if (!p) return;
+      this.launch(p, {
+        x: x + (Math.random() - 0.5) * 30,
+        y: y - 8,
+        vx: (Math.random() - 0.5) * 50,
+        vy: -110 - Math.random() * 70,
+        life: 0.5 + Math.random() * 0.3,
+        color: i % 2 ? 0xfde047 : 0xfbbf24,
+        scale: 0.5 + Math.random() * 0.4,
+        gravity: 60,
+        drag: 1.2,
+      });
+    }
+  }
+
+  /**
+   * Draw the Meteor spells still in flight (called every frame from main.ts).
+   * Driven by sim state, not a timer, so pause and game speed stay in sync.
+   */
+  syncMeteors(list: RenderMeteor[]): void {
+    for (let i = 0; i < this.meteors.length; i++) {
+      const node = this.meteors[i];
+      const m = list[i];
+      const visible = m !== undefined;
+      node.rock.visible = visible;
+      node.reticle.visible = visible;
+      node.scorch.visible = visible;
+      if (!m) continue;
+      const t = m.delay > 0 ? Math.min(1, Math.max(0, 1 - m.timeLeft / m.delay)) : 1;
+      const rx = m.x + METEOR_DROP.x * (1 - t);
+      const ry = m.y + METEOR_DROP.y * (1 - t);
+      node.rock.position.set(rx, ry);
+      node.rock.scale.set(0.8 + t * 0.7);
+      node.reticle.position.set(m.x, m.y);
+      node.reticle.scale.set(m.radius / 60);
+      node.reticle.alpha = 0.5 + t * 0.4;
+      node.scorch.position.set(m.x, m.y);
+      node.scorch.scale.set((m.radius / 7) * (0.25 + t * 0.5));
+      node.scorch.alpha = 0.1 + t * 0.22;
+      const ember = this.spawn();
+      if (ember) {
+        this.launch(ember, {
+          x: rx + (Math.random() - 0.5) * 14,
+          y: ry + (Math.random() - 0.5) * 14,
+          vx: (Math.random() - 0.5) * 60,
+          vy: (Math.random() - 0.5) * 60,
+          life: 0.25 + Math.random() * 0.2,
+          color: Math.random() < 0.5 ? 0xfbbf24 : 0xff6b35,
+          scale: 0.5 + Math.random() * 0.5,
+          gravity: 0,
+          drag: 2,
+        });
+      }
+    }
+  }
+
   /** Tower placement: rising ring + glow + sparkle (spec §41). */
   place(x: number, y: number): void {
     this.ring(x, y, 10, 70, 0x4ade80, 0.5);
@@ -537,6 +646,31 @@ export class Effects {
   private ringG(): PIXI.Graphics {
     const g = new PIXI.Graphics();
     g.circle(64, 64, 56).stroke({ width: 10, color: 0xffffff });
+    return g;
+  }
+
+  /** Flaming rock heading +x: tail trails behind, core sits at (66, 22). */
+  private meteorG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    g.poly([0, 22, 60, 4, 60, 40]).fill({ color: 0xff6b35, alpha: 0.4 });
+    g.poly([18, 22, 62, 9, 62, 35]).fill({ color: 0xfbbf24, alpha: 0.6 });
+    g.poly([36, 22, 64, 14, 64, 30]).fill({ color: 0xfef3c7, alpha: 0.8 });
+    g.circle(66, 22, 21).fill({ color: 0xff6b35, alpha: 0.45 });
+    g.circle(66, 22, 15).fill({ color: 0x9a3412 });
+    g.circle(66, 22, 15).stroke({ width: 3, color: 0x431407 });
+    // Leading edge glows white-hot; craters sit on the trailing side.
+    g.circle(71, 22, 8).fill({ color: 0xfb923c });
+    g.circle(74, 22, 4).fill({ color: 0xfef3c7 });
+    g.circle(59, 17, 3).fill({ color: 0x431407, alpha: 0.7 });
+    g.circle(60, 28, 2.5).fill({ color: 0x431407, alpha: 0.7 });
+    return g;
+  }
+
+  /** Meteor landing zone: thin ring + faint fill, radius 60 at scale 1. */
+  private reticleG(): PIXI.Graphics {
+    const g = new PIXI.Graphics();
+    g.circle(64, 64, 60).fill({ color: 0xffffff, alpha: 0.16 });
+    g.circle(64, 64, 60).stroke({ width: 4, color: 0xffffff });
     return g;
   }
 

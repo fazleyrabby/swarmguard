@@ -10,6 +10,7 @@
 import { TOWERS, towerMaxHp, type TowerId } from '../config/towers';
 import { DEFAULT_MAP, type MapDefinition } from '../config/maps';
 import { DEFAULT_CHALLENGE, type ChallengeDefinition } from '../config/challenges';
+import type { SpellId } from '../config/spells';
 import { FINAL_MVP_WAVE } from '../config/waves';
 import {
   DEFAULT_TARGETING,
@@ -33,6 +34,7 @@ import {
 import { updateMovement } from './systems/MovementSystem';
 import { ProjectilePool, updateProjectiles } from './systems/ProjectileSystem';
 import { initWaveSpawning, updateSpawn } from './systems/SpawnSystem';
+import { castSpell, spellReady, updateSpells } from './systems/SpellSystem';
 import { updateTargets } from './systems/TargetingSystem';
 import {
   applyUpgrade,
@@ -167,6 +169,7 @@ export class Game {
     updateSpawn(s, dt);
     updateDifficulty(dt, s);
     updateAbilities(s, dt, this.events);
+    updateSpells(s, dt, this.events);
     updateEnemyAttacks(s, dt, this.events);
     updateMovement(s, dt, this.events);
     applyPoison(s, dt, this.events);
@@ -317,6 +320,16 @@ export class Game {
     this.events.emit('tower:sold', { ...tower, refund });
     this.recalculateAuras();
     return refund;
+  }
+
+  /** True when the spell is off cooldown and a wave is running. */
+  canCastSpell(id: SpellId): boolean {
+    return spellReady(this.state, id);
+  }
+
+  /** Cast a player spell at a world position (ignored by untargeted spells). */
+  castSpell(id: SpellId, x = 0, y = 0): boolean {
+    return castSpell(this.state, id, x, y, this.events);
   }
 
   /** Recalculate all tower auras immediately (used after build/upgrade/sell). */

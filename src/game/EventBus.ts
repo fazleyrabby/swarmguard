@@ -18,7 +18,9 @@ export type GameEventName =
   | 'base:damaged'
   | 'game:over'
   | 'victory'
-  | 'gold:changed';
+  | 'gold:changed'
+  | 'spell:cast'
+  | 'spell:impact';
 
 export type EventHandler = (payload?: unknown) => void;
 

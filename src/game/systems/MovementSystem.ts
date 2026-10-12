@@ -34,6 +34,12 @@ export function updateMovement(
       if (enemy.slowTimeLeft === 0) enemy.slowFactor = 0;
     }
 
+    // Frozen solid by the Freeze spell: slows keep ticking, nothing moves.
+    if (enemy.frozenTimeLeft !== undefined && enemy.frozenTimeLeft > 0) {
+      enemy.frozenTimeLeft = Math.max(0, enemy.frozenTimeLeft - delta);
+      continue;
+    }
+
     // Engaged melee attackers stand their ground (see EnemyAttackSystem).
     if (enemy.attackTargetId !== undefined) continue;
 

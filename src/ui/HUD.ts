@@ -222,10 +222,11 @@ export class HUD {
       this.lastGold = goldText;
       this.goldEl.textContent = goldText;
     }
-    const waveText = `WAVE ${Math.max(state.wave, 1)}`;
+    const waveText =
+      state.status === GameStatus.MENU ? 'WAVE –' : `WAVE ${Math.max(state.wave, 1)}`;
     if (waveText !== this.lastWave) {
       this.lastWave = waveText;
-      this.waveEl.textContent = state.status === GameStatus.MENU ? 'WAVE –' : waveText;
+      this.waveEl.textContent = waveText;
     }
     if (state.speedMultiplier !== this.lastSpeed) {
       this.lastSpeed = state.speedMultiplier;

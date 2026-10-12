@@ -33,6 +33,9 @@ export type SoundName =
   | 'base-hit'
   | 'game-over'
   | 'victory'
+  | 'spell-meteor'
+  | 'spell-freeze'
+  | 'spell-rally'
   | 'click'
   | 'error';
 
@@ -285,6 +288,21 @@ const SOUNDS: Record<SoundName, (a: Player) => void> = {
   victory: (a) => {
     const notes = [523, 659, 784, 1047, 784, 1047];
     notes.forEach((f, i) => a.tone({ freq: f, duration: 0.18, volume: 0.28, type: 'triangle', delay: i * 0.15 }));
+  },
+  'spell-meteor': (a) => {
+    // Incoming whistle; the impact itself plays `explosion`.
+    a.tone({ freq: 1800, freqEnd: 240, duration: 0.5, volume: 0.2, type: 'sawtooth' });
+    a.noise(0.5, 0.14, 3000, 0, 'highpass');
+  },
+  'spell-freeze': (a) => {
+    a.noise(0.35, 0.22, 6500, 0, 'highpass');
+    a.tone({ freq: 2200, freqEnd: 700, duration: 0.35, volume: 0.16, type: 'triangle' });
+    a.tone({ freq: 1320, freqEnd: 440, duration: 0.45, volume: 0.12, type: 'sine', delay: 0.04 });
+  },
+  'spell-rally': (a) => {
+    a.tone({ freq: 294, duration: 0.14, volume: 0.28, type: 'sawtooth' });
+    a.tone({ freq: 392, duration: 0.14, volume: 0.28, type: 'sawtooth', delay: 0.12 });
+    a.tone({ freq: 587, duration: 0.34, volume: 0.3, type: 'sawtooth', delay: 0.24 });
   },
   click: (a) => {
     a.tone({ freq: 800, freqEnd: 600, duration: 0.05, volume: 0.12, type: 'sine' });
